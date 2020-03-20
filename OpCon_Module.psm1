@@ -7,14 +7,14 @@ Module notes:
 -Added functions for getting scripts/versions
 #>
 
-function SMA_ModuleAPIVersion
+function OpCon_ModuleAPIVersion
 {
     Write-Host "******************************`r`nWritten for OpCon Release 19.0`r`n******************************"
 }
 
 ##################################################################################################
 #Used if calling an API that is not local to the machine
-function SMA_IgnoreSelfSignedCerts
+function OpCon_IgnoreSelfSignedCerts
 {
     try
     {
@@ -41,7 +41,7 @@ function SMA_IgnoreSelfSignedCerts
 }
 
 #Get user/app token
-function SMA_Login($url,$user,$password,$appname)
+function OpCon_Login($url,$user,$password,$appname)
 {
     if($pscore)
     { 
@@ -88,7 +88,7 @@ function SMA_Login($url,$user,$password,$appname)
 }
 
 #Delete token from database
-function SMA_DeleteAPIToken($url,$token)
+function OpCon_DeleteAPIToken($url,$token)
 {
     $hdr = @{"authorization" = $token}
 
@@ -119,7 +119,7 @@ ID, Value, Encryption of global property.
 
 C:\PS> opgp -Name "My Property"
 #>
-function SMA_GetGlobalProperty($url,$token,$id,$name)
+function OpCon_GetGlobalProperty($url,$token,$id,$name)
 {
     $hdr = @{"authorization" = $token}
     
@@ -149,10 +149,10 @@ function SMA_GetGlobalProperty($url,$token,$id,$name)
     
     return $globalproperty
 }
-New-Alias "opgp" SMA_GetGlobalProperty
+New-Alias "opgp" OpCon_GetGlobalProperty
 
 #Creates a new global property
-function SMA_CreateGlobalProperty($name,$value,$encrypt,$url,$token)
+function OpCon_CreateGlobalProperty($name,$value,$encrypt,$url,$token)
 {
     $hdr = @{"authorization" = $token}
     
@@ -175,14 +175,14 @@ function SMA_CreateGlobalProperty($name,$value,$encrypt,$url,$token)
 
     return $globalproperty
 }
-New-Alias "opcp" SMA_CreateGlobalProperty
+New-Alias "opcp" OpCon_CreateGlobalProperty
 
 #Sets a global property to a value
-function SMA_SetGlobalProperty($url,$token,$id,$name,$value)
+function OpCon_SetGlobalProperty($url,$token,$id,$name,$value)
 {
     If($name -or $id)
     {
-        $property = SMA_GetGlobalProperty -url $url -token $token -name $name -id $id
+        $property = OpCon_GetGlobalProperty -url $url -token $token -name $name -id $id
 
         $counter = 0
         $property | ForEach-Object{ $counter++ }
@@ -223,10 +223,10 @@ function SMA_SetGlobalProperty($url,$token,$id,$name,$value)
 
     return $update
 }
-New-Alias "opsp" SMA_SetGlobalProperty
+New-Alias "opsp" OpCon_SetGlobalProperty
 
 #Get threshold
-function SMA_GetThreshold($url,$token,$name,$id)
+function OpCon_GetThreshold($url,$token,$name,$id)
 {
     $hdr = @{"authorization" = $token}
 
@@ -256,10 +256,10 @@ function SMA_GetThreshold($url,$token,$name,$id)
 
     return $threshold
 }
-New-Alias "opgt" SMA_GetThreshold
+New-Alias "opgt" OpCon_GetThreshold
 
 #Create threshold
-function SMA_CreateThreshold($url,$token,$name,$value,$description)
+function OpCon_CreateThreshold($url,$token,$name,$value,$description)
 {
     $hdr = @{"authorization" = $token}
 
@@ -281,20 +281,20 @@ function SMA_CreateThreshold($url,$token,$name,$value,$description)
 
     return $threshold
 }
-New-Alias "opct" SMA_CreateThreshold
+New-Alias "opct" OpCon_CreateThreshold
 
 #Set threshold value
-function SMA_SetThreshold($url,$token,$id,$name,$value,$description)
+function OpCon_SetThreshold($url,$token,$id,$name,$value,$description)
 {
     $hdr = @{"authorization" = $token}
 
     If($name)
     {
-        $threshold = SMA_GetThreshold -url $url -token $token -name $name
+        $threshold = OpCon_GetThreshold -url $url -token $token -name $name
     }
     ElseIf($id)
     {
-        $threshold = SMA_GetThreshold -url $url -token $token -id $id
+        $threshold = OpCon_GetThreshold -url $url -token $token -id $id
     }
     Else
     {
@@ -349,10 +349,10 @@ function SMA_SetThreshold($url,$token,$id,$name,$value,$description)
 
     return $result
 }
-New-Alias "opst" SMA_SetThreshold
+New-Alias "opst" OpCon_SetThreshold
 
 #Get resource
-function SMA_GetResource($url,$token,$name,$id)
+function OpCon_GetResource($url,$token,$name,$id)
 {
     $hdr = @{"authorization" = $token}
 
@@ -382,14 +382,14 @@ function SMA_GetResource($url,$token,$name,$id)
 
     return $resource
 }
-New-Alias "opgres" SMA_GetResource
+New-Alias "opgres" OpCon_GetResource
 
 #Create resource
-function SMA_CreateResource($url,$token,$name,$value,$description)
+function OpCon_CreateResource($url,$token,$name,$value,$description)
 {
     $hdr = @{"authorization" = $token}
 
-    $resource = SMA_GetResource -url $url -token $token -name $name
+    $resource = OpCon_GetResource -url $url -token $token -name $name
     $counter = 0
     $resource | ForEach-Object { $counter ++ }
 
@@ -417,14 +417,14 @@ function SMA_CreateResource($url,$token,$name,$value,$description)
 
     return $resource
 }
-New-Alias "opcres" SMA_CreateResource
+New-Alias "opcres" OpCon_CreateResource
 
 #Set resource value
-function SMA_SetResource($url,$token,$id,$name,$value,$description,$used)
+function OpCon_SetResource($url,$token,$id,$name,$value,$description,$used)
 {
     $hdr = @{"authorization" = $token}
 
-    $resource = SMA_GetResource -url $url -token $token -name $name -id $id
+    $resource = OpCon_GetResource -url $url -token $token -name $name -id $id
 
     $counter = 0
     $resource | ForEach-Object { $counter ++ }
@@ -512,10 +512,10 @@ function SMA_SetResource($url,$token,$id,$name,$value,$description,$used)
 
     return $result
 }
-New-Alias "opsres" SMA_SetResource
+New-Alias "opsres" OpCon_SetResource
 
 #Gets information about an OpCon Agent
-function SMA_GetAgent($url,$token,$agentname,$id)
+function OpCon_GetAgent($url,$token,$agentname,$id)
 {
     $hdr = @{"authorization" = $token}
 
@@ -545,14 +545,14 @@ function SMA_GetAgent($url,$token,$agentname,$id)
     
     return $machine
 }
-New-Alias "opga" SMA_GetAgent
+New-Alias "opga" OpCon_GetAgent
 
 #Starts or stops an OpCon agent based on parameters
-function SMA_ChangeAgentStatus($agentname,$action,$url,$token)
+function OpCon_ChangeAgentStatus($agentname,$action,$url,$token)
 {
     $hdr = @{"authorization" = $token}
 
-    $machine = SMA_GetAgent -agentname $agentname -url $url -token $token
+    $machine = OpCon_GetAgent -agentname $agentname -url $url -token $token
     if($machine.Count -eq 0)
     {
         Write-Host "No agent by that name!"
@@ -578,15 +578,15 @@ function SMA_ChangeAgentStatus($agentname,$action,$url,$token)
     Write-Host "Agent is $action!`r`n"
     return $machineaction
 }
-New-Alias "opas" SMA_ChangeAgentStatus
+New-Alias "opas" OpCon_ChangeAgentStatus
 
 
 #Creates a new agent in OpCon
-function SMA_CreateAgent($agentname,$agenttype,$agentdescription,$agentsocket,$agentjors,$token,$url)
+function OpCon_CreateAgent($agentname,$agenttype,$agentdescription,$agentsocket,$agentjors,$token,$url)
 {
     $hdr = @{"authorization" = $token}
 
-    $exists = SMA_GetAgent -agentname $agentname -url $url -token $token
+    $exists = OpCon_GetAgent -agentname $agentname -url $url -token $token
     if($exists.Count -eq 0)
     {
         #Assign Agent type # based off provided OS name
@@ -633,14 +633,14 @@ function SMA_CreateAgent($agentname,$agenttype,$agentdescription,$agentsocket,$a
 
     return $machine
 }
-New-Alias "opca" SMA_CreateAgent
+New-Alias "opca" OpCon_CreateAgent
 
 #Updates a particular field on an existing agent
-function SMA_UpdateAgent($agentname,$token,$url,$field,$value)
+function OpCon_UpdateAgent($agentname,$token,$url,$field,$value)
 {
     $hdr = @{"authorization" = $token}
     
-    $agent = SMA_GetAgent -agentname $agentname -url $url -token $token
+    $agent = OpCon_GetAgent -agentname $agentname -url $url -token $token
     If($agent.PSobject.Properties.name -match $field)
     {
         $agent.$field = $value
@@ -651,7 +651,7 @@ function SMA_UpdateAgent($agentname,$token,$url,$field,$value)
     }
 
     #Take the machine down
-    $down = SMA_ChangeAgentStatus -agentname $agentname -action "down" -url $url -token $token
+    $down = OpCon_ChangeAgentStatus -agentname $agentname -action "down" -url $url -token $token
 
     $body = $agent | ConvertTo-Json -Depth 4
     $uriput = $url + "/api/machines/" + $agent.id
@@ -669,13 +669,13 @@ function SMA_UpdateAgent($agentname,$token,$url,$field,$value)
     Sleep 3
 
     #Bring the updated machine back up
-    $up = SMA_ChangeAgentStatus -agentname $agentname -action "up" -url $url -token $token
+    $up = OpCon_ChangeAgentStatus -agentname $agentname -action "up" -url $url -token $token
     return $up[0]
 }
-New-Alias "opua" SMA_UpdateAgent
+New-Alias "opua" OpCon_UpdateAgent
 
 #Get schedule information
-function SMA_GetSchedule($url,$token,$sname,$date)
+function OpCon_GetSchedule($url,$token,$sname,$date)
 {
     $hdr = @{"authorization" = $token}
 
@@ -734,10 +734,10 @@ function SMA_GetSchedule($url,$token,$sname,$date)
         return $getschedule
     }
 }
-New-Alias "opgds" SMA_GetSchedule
+New-Alias "opgds" OpCon_GetSchedule
 
 
-function SMA_ScheduleAction($url,$token,$sname,$jname,$frequency,$reason,$action,$states,$date,$sid,$instanceProperties,[switch]$applyExceptions,[switch]$rebuildOnRestart)
+function OpCon_ScheduleAction($url,$token,$sname,$jname,$frequency,$reason,$action,$states,$date,$sid,$instanceProperties,[switch]$applyExceptions,[switch]$rebuildOnRestart)
 {
     $hdr = @{"authorization" = $token}
 
@@ -808,7 +808,7 @@ function SMA_ScheduleAction($url,$token,$sname,$jname,$frequency,$reason,$action
             $idArray = @()
             for($y=0;$y -lt $dateArray.Count;$y++)
             {
-                $schedule = SMA_GetSchedule -url $url -token $token -sname $scheduleArray[$x] -date $dateArray[$y]
+                $schedule = OpCon_GetSchedule -url $url -token $token -sname $scheduleArray[$x] -date $dateArray[$y]
                 $schedule | ForEach-Object{ $counter++ }
 
                 If($counter -ne 1)
@@ -920,7 +920,7 @@ function SMA_ScheduleAction($url,$token,$sname,$jname,$frequency,$reason,$action
         $timeout = 5
         While((($getAction.result -ne "success") -and ($getAction.result -ne "failed")) -and ($timeout -ne 0))
         {
-            $getAction = SMA_GetScheduleAction -url $url -token $token -id $submit.id
+            $getAction = OpCon_GetScheduleAction -url $url -token $token -id $submit.id
             Start-Sleep -Seconds 1
             $timeout--
         }
@@ -931,7 +931,7 @@ function SMA_ScheduleAction($url,$token,$sname,$jname,$frequency,$reason,$action
 }
 
 #Gets information about a daily job
-function SMA_GetDailyJob($url,$token,$sname,$jname,$date,$id)
+function OpCon_GetDailyJob($url,$token,$sname,$jname,$date,$id)
 {
     $hdr = @{"authorization" = $token}
     
@@ -967,10 +967,10 @@ function SMA_GetDailyJob($url,$token,$sname,$jname,$date,$id)
 
     return $jobs
 }
-New-Alias "opgdj" SMA_GetDailyJob
+New-Alias "opgdj" OpCon_GetDailyJob
 
 #Sends a job action to a job
-function SMA_JobAction($url,$token,$sname,$jname,$date,$action,$reason)
+function OpCon_JobAction($url,$token,$sname,$jname,$date,$action,$reason)
 {
     $hdr = @{"authorization" = $token}
 
@@ -1007,7 +1007,7 @@ function SMA_JobAction($url,$token,$sname,$jname,$date,$action,$reason)
         {
             $date = Get-Date -Format "yyyy/MM/dd"
         }
-        $job = SMA_GetDailyJob -url $url -token $token -sname "$sname" -jname "$jname" -date $date
+        $job = OpCon_GetDailyJob -url $url -token $token -sname "$sname" -jname "$jname" -date $date
 
         $counter = 0    
         $job | ForEach-Object{ $counter++ }
@@ -1053,7 +1053,7 @@ function SMA_JobAction($url,$token,$sname,$jname,$date,$action,$reason)
         for($x = 0;$x -lt 20;$x++)
         {
             $jobaction
-            $result = SMA_GetJobAction -url $url -token $token -id $jobaction.id
+            $result = OpCon_GetJobAction -url $url -token $token -id $jobaction.id
         
             if($result.result -eq "success")
             { $x = 20 }
@@ -1071,7 +1071,7 @@ function SMA_JobAction($url,$token,$sname,$jname,$date,$action,$reason)
 }
 
 #Get calendar
-function SMA_GetCalendar($url,$token,$name,$id)
+function OpCon_GetCalendar($url,$token,$name,$id)
 {
     $hdr = @{"authorization" = $token}
 
@@ -1107,10 +1107,10 @@ function SMA_GetCalendar($url,$token,$name,$id)
         Write-Host "No name or id specified!"
     }
 }
-New-Alias "opgc" SMA_GetCalendar
+New-Alias "opgc" OpCon_GetCalendar
 
 #Updates a calendar
-function SMA_UpdateCalendar($url,$token,$name,$id,$date)
+function OpCon_UpdateCalendar($url,$token,$name,$id,$date)
 {
     $hdr = @{"authorization" = $token}
 
@@ -1119,9 +1119,9 @@ function SMA_UpdateCalendar($url,$token,$name,$id,$date)
         $counter = 0
         
         if($name)
-        { $calendar = SMA_GetCalendar -url $url -token $token -name $name }
+        { $calendar = OpCon_GetCalendar -url $url -token $token -name $name }
         if($id)
-        { $calendar = SMA_GetCalendar -url $url -token $token -id $id }
+        { $calendar = OpCon_GetCalendar -url $url -token $token -id $id }
 
         $calendar | ForEach-Object{ $counter++ }
 
@@ -1165,10 +1165,10 @@ function SMA_UpdateCalendar($url,$token,$name,$id,$date)
         Write-Host "No date specified!"
     }
 }
-New-Alias "opuc" SMA_UpdateCalendar
+New-Alias "opuc" OpCon_UpdateCalendar
 
 #Creates a user calendar (api allows for holiday calendar based on a schedule too)
-function SMA_CreateCalendar($url,$token,$type,$name,$dates,$description)
+function OpCon_CreateCalendar($url,$token,$type,$name,$dates,$description)
 {
     $hdr = @{"authorization" = $token}
 
@@ -1190,10 +1190,10 @@ function SMA_CreateCalendar($url,$token,$type,$name,$dates,$description)
 
     return $calendar
 }
-New-Alias "opcc" SMA_CreateCalendar
+New-Alias "opcc" OpCon_CreateCalendar
 
 #Checks the status of the SAM service
-function SMA_SAMStatus($url,$token)
+function OpCon_SAMStatus($url,$token)
 {
     $hdr = @{"authorization" = $token}
 
@@ -1212,7 +1212,7 @@ function SMA_SAMStatus($url,$token)
 }
 
 #Checks the OpCon API Version
-function SMA_OpConAPIVersion($url)
+function OpCon_OpConAPIVersion($url)
 {
     $uriget = $url + "/api/version"
 
@@ -1229,11 +1229,11 @@ function SMA_OpConAPIVersion($url)
 }
 
 #Function to remove an item from a Service Request choice dropdown
-function SMA_DeleteSSChoice($getdropdown,$url,$token,$buttonname,$removeitem)
+function OpCon_DeleteSSChoice($getdropdown,$url,$token,$buttonname,$removeitem)
 {
     $hdr = @{"authorization" = $token}
 
-    $get = SMA_GetSSButton -button $buttonname -url $url -token $token
+    $get = OpCon_GetSSButton -button $buttonname -url $url -token $token
     if(@($get).Count -eq 1)
     {
         $get = $get[0]
@@ -1268,14 +1268,14 @@ function SMA_DeleteSSChoice($getdropdown,$url,$token,$buttonname,$removeitem)
 
     return $update
 }
-New-Alias "opdssc" SMA_DeleteSSChoice
+New-Alias "opdssc" OpCon_DeleteSSChoice
 
 #Function to add entries to a Service Request choice selection
-function SMA_AddSSChoice($addname,$addvalue,$getdropdown,$url,$token,$buttonname)
+function OpCon_AddSSChoice($addname,$addvalue,$getdropdown,$url,$token,$buttonname)
 {
     $hdr = @{"authorization" = $token}
 
-    $get = SMA_GetSSButton -button $buttonname -url $url -token $token
+    $get = OpCon_GetSSButton -button $buttonname -url $url -token $token
     if(@($get).Count -eq 1)
     {
         $get = $get[0]
@@ -1324,10 +1324,10 @@ function SMA_AddSSChoice($addname,$addvalue,$getdropdown,$url,$token,$buttonname
         Write-Host "Entry already exists!"
     }
 }
-New-Alias "opassc" SMA_AddSSChoice
+New-Alias "opassc" OpCon_AddSSChoice
 
 #Gets information about a Self Service button
-function SMA_GetSSButton($url,$token,$id,$button)
+function OpCon_GetSSButton($url,$token,$id,$button)
 {
     $hdr = @{"authorization" = $token}
 
@@ -1360,10 +1360,10 @@ function SMA_GetSSButton($url,$token,$id,$button)
 
     return $getbutton
 }
-#New-Alias "opgssb" SMA_GetSSButton
+#New-Alias "opgssb" OpCon_GetSSButton
 
 #Gets a user from the OpCon database
-function SMA_GetUser($username,$url,$token)
+function OpCon_GetUser($username,$url,$token)
 {
     $hdr = @{"authorization" = $token}
 
@@ -1380,10 +1380,10 @@ function SMA_GetUser($username,$url,$token)
 
     return $user
 }
-New-Alias "opgu" SMA_GetUser
+New-Alias "opgu" OpCon_GetUser
 
 #Get a specific role
-function SMA_GetRole($url,$token,$id,$rolename)
+function OpCon_GetRole($url,$token,$id,$rolename)
 {
     $hdr = @{"authorization" = $token}
 
@@ -1412,19 +1412,19 @@ function SMA_GetRole($url,$token,$id,$rolename)
 
     return $role
 }
-New-Alias "opgrol" SMA_GetRole
+New-Alias "opgrol" OpCon_GetRole
 
 #Adds a specific role to a user in OpCon
-function SMA_AddUserRole($user,$rolename,$url,$token)
+function OpCon_AddUserRole($user,$rolename,$url,$token)
 {
     $hdr = @{"authorization" = $token}
 
-    $userinfo = SMA_GetUser -username $user -url $url -token $token
+    $userinfo = OpCon_GetUser -username $user -url $url -token $token
     if($userinfo.Count -eq 0)
     {
         Write-Host "User $user does not exist"
     }
-    $role = @(SMA_GetRole -rolename $rolename -url $url -token $token)
+    $role = @(OpCon_GetRole -rolename $rolename -url $url -token $token)
     if($role.Count -eq 1)
     {
         $role = $role[0]
@@ -1456,15 +1456,15 @@ function SMA_AddUserRole($user,$rolename,$url,$token)
 
     return $user
 }
-New-Alias "opaurol" SMA_AddUserRole
+New-Alias "opaurol" OpCon_AddUserRole
 
 
 #Adds all the roles related to the Demo SS Environment
-function SMA_AddDemoUserRoles($user,$url,$token)
+function OpCon_AddDemoUserRoles($user,$url,$token)
 {
     $hdr = @{"authorization" = $token}
-    $userinfo = SMA_GetUser -username $user -url $url -token $token
-    $role = SMA_GetRole -rolename "*_SS" -url $url -token $token
+    $userinfo = OpCon_GetUser -username $user -url $url -token $token
+    $role = OpCon_GetRole -rolename "*_SS" -url $url -token $token
 
     #Get Role ids for default OpCon/Self Service demo
     $dba = $role | where-object {$_ -like "*DBA_SS*"}
@@ -1495,11 +1495,11 @@ function SMA_AddDemoUserRoles($user,$url,$token)
 }
 
 #Creates an OpCon user
-function SMA_CreateUser($url,$token,$username,$password,$roleid,$rolename,$email,$notes,$comment)
+function OpCon_CreateUser($url,$token,$username,$password,$roleid,$rolename,$email,$notes,$comment)
 {
     $hdr = @{"authorization" = $token}
 
-    $get = SMA_Getuser -url $url -token $token -username $username
+    $get = OpCon_Getuser -url $url -token $token -username $username
     if(@($get).Count -eq 1)
     {
         Write-host "User " $username " already exists"
@@ -1507,7 +1507,7 @@ function SMA_CreateUser($url,$token,$username,$password,$roleid,$rolename,$email
 
     if(!$roleid -and $rolename)
     {
-        $role = SMA_GetRole -url $url -token $token -rolename $rolename
+        $role = OpCon_GetRole -url $url -token $token -rolename $rolename
         if(@($role).Count -eq 1)
         {
             $roleid = $role[0].id
@@ -1529,15 +1529,15 @@ function SMA_CreateUser($url,$token,$username,$password,$roleid,$rolename,$email
 
     return $create
 }
-New-Alias "opcu" SMA_CreateUser
+New-Alias "opcu" OpCon_CreateUser
    
 #Sets up a job to disable a created user
-function SMA_DisableDemoUser($url,$token,$username,$userid)
+function OpCon_DisableDemoUser($url,$token,$username,$userid)
 {   
     $hdr = @{"authorization" = $token}
 
     #Get "ADHOC" schedule information
-    $scheduleinfo = SMA_GetSchedule -url $url -token $token -sname "ADHOC" -date (Get-Date -Format "MM/dd/yyyy")
+    $scheduleinfo = OpCon_GetSchedule -url $url -token $token -sname "ADHOC" -date (Get-Date -Format "MM/dd/yyyy")
 
     #Make sure only 1 Adhoc schedule was returned
     If(@($scheduleinfo).Count -ne 1)
@@ -1562,13 +1562,13 @@ function SMA_DisableDemoUser($url,$token,$username,$userid)
 }
 
 #Updates a field in an OpCon user
-function SMA_UpdateUser($url,$token,$username,$field,$value)
+function OpCon_UpdateUser($url,$token,$username,$field,$value)
 {
     $hdr = @{"authorization" = $token}
 
     if($username)
     {
-        $getuser = SMA_GetUser -username $username -url $url -token $token
+        $getuser = OpCon_GetUser -username $username -url $url -token $token
         if($getuser.length -eq 0) # length of 0 indicates no user record exists
         { 
             Write-Host "User $username does not exist"
@@ -1596,10 +1596,10 @@ function SMA_UpdateUser($url,$token,$username,$field,$value)
         Write-Host "No username provided!"
     }
 }
-New-Alias "opuu" SMA_UpdateUser
+New-Alias "opuu" OpCon_UpdateUser
 
 #Get schedule information
-function SMA_GetDailyJobsCountByStatus($url,$token,$date,$status)
+function OpCon_GetDailyJobsCountByStatus($url,$token,$date,$status)
 {
     $hdr = @{"authorization" = $token}
 
@@ -1621,10 +1621,10 @@ function SMA_GetDailyJobsCountByStatus($url,$token,$date,$status)
 
     return $count
 }
-New-Alias "opgdjcs" SMA_GetDailyJobsCountByStatus
+New-Alias "opgdjcs" OpCon_GetDailyJobsCountByStatus
 
 #Gets daily jobs by status and date (default todays date)
-function SMA_GetDailyJobsByStatus($url,$token,$date,$status)
+function OpCon_GetDailyJobsByStatus($url,$token,$date,$status)
 {
     $hdr = @{"authorization" = $token}
 
@@ -1646,9 +1646,9 @@ function SMA_GetDailyJobsByStatus($url,$token,$date,$status)
 
     return $count
 }
-New-Alias "opgdjstat" SMA_GetDailyJobsByStatus
+New-Alias "opgdjstat" OpCon_GetDailyJobsByStatus
 
-function SMA_GetDailyJobsBySchedule($url,$token,$date,$schedule)
+function OpCon_GetDailyJobsBySchedule($url,$token,$date,$schedule)
 {
     $hdr = @{"authorization" = $token}
 
@@ -1672,7 +1672,7 @@ function SMA_GetDailyJobsBySchedule($url,$token,$date,$schedule)
 }
 
 #Gets a specific daily job based on the jobs id
-function SMA_GetSpecificDailyJob($url,$token,$jid)
+function OpCon_GetSpecificDailyJob($url,$token,$jid)
 {
     $hdr = @{"authorization" = $token}
 
@@ -1691,13 +1691,13 @@ function SMA_GetSpecificDailyJob($url,$token,$jid)
 }
 
 #Attempts to get an output file from a job run
-function SMA_SubmitJobInstanceFileAction($url,$token,$sname,$jname,$date,$jobnumber,$path)
+function OpCon_SubmitJobInstanceFileAction($url,$token,$sname,$jname,$date,$jobnumber,$path)
 {
     $hdr = @{"authorization" = $token}
 
     if(!$jobnumber)
     {
-        $jobnumber = (SMA_GetDailyJob -url $url -token $token -sname $sname -jname $jname -date $date).jobNumber
+        $jobnumber = (OpCon_GetDailyJob -url $url -token $token -sname $sname -jname $jname -date $date).jobNumber
     }
 
     $uripost = $url + "/api/jobinstanceactions"
@@ -1717,11 +1717,11 @@ function SMA_SubmitJobInstanceFileAction($url,$token,$sname,$jname,$date,$jobnum
 }
 
 #Attempts to get a list of output files from a job run
-function SMA_SubmitJobInstanceListAction($url,$token,$sname,$jname,$date)
+function OpCon_SubmitJobInstanceListAction($url,$token,$sname,$jname,$date)
 {
     $hdr = @{"authorization" = $token}
 
-    $jobnumber = (SMA_GetDailyJob -url $url -token $token -sname $sname -jname $jname -date $date).jobNumber
+    $jobnumber = (OpCon_GetDailyJob -url $url -token $token -sname $sname -jname $jname -date $date).jobNumber
 
     $uripost = $url + "/api/jobinstanceactions"
     $body = '{"action":"LIST","jobInstanceActionItems":[{"id":' + $jobnumber + '}]}'
@@ -1740,7 +1740,7 @@ function SMA_SubmitJobInstanceListAction($url,$token,$sname,$jname,$date)
 }
 
 #Gets information about a previously submitted job action
-function SMA_GetJobInstanceAction($url,$token,$id)
+function OpCon_GetJobInstanceAction($url,$token,$id)
 {
     $hdr = @{"authorization" = $token}
 
@@ -1759,13 +1759,13 @@ function SMA_GetJobInstanceAction($url,$token,$id)
 }
 
 #Standard function for returning job output, a custom function may be required if there are multiple output files
-function SMA_GetJobOutput($url,$token,$sname,$jname,$date)
+function OpCon_GetJobOutput($url,$token,$sname,$jname,$date)
 {
-    $list = SMA_SubmitJobInstanceListAction -url $url -token $token -sname $sname -jname $jname -date $date
-    $liststatus = SMA_GetJobInstanceAction -url $url -token $token -id $list.id
+    $list = OpCon_SubmitJobInstanceListAction -url $url -token $token -sname $sname -jname $jname -date $date
+    $liststatus = OpCon_GetJobInstanceAction -url $url -token $token -id $list.id
     while((($liststatus.result -ne "success") -and ($liststatus.result -ne "failed")))
     {
-        $liststatus = SMA_GetJobInstanceAction -url $url -token $token -id $list.id
+        $liststatus = OpCon_GetJobInstanceAction -url $url -token $token -id $list.id
     }
 
     if($liststatus.result -eq "success")
@@ -1777,11 +1777,11 @@ function SMA_GetJobOutput($url,$token,$sname,$jname,$date)
         Write-Host "Problem getting job output file list"
     }
 
-    $output = SMA_SubmitJobInstanceFileAction -url $url -token $token -jobnumber $liststatus.jobInstanceActionItems.id -path $path
-    $outputstatus = SMA_GetJobInstanceAction -url $url -token $token -id $output.id
+    $output = OpCon_SubmitJobInstanceFileAction -url $url -token $token -jobnumber $liststatus.jobInstanceActionItems.id -path $path
+    $outputstatus = OpCon_GetJobInstanceAction -url $url -token $token -id $output.id
     while((($outputstatus.result -ne "success") -and ($outputstatus.result -ne "failed")))
     {
-        $outputstatus = SMA_GetJobInstanceAction -url $url -token $token -id $output.id
+        $outputstatus = OpCon_GetJobInstanceAction -url $url -token $token -id $output.id
     }
 
     if($outputstatus.result -eq "failed")
@@ -1791,10 +1791,10 @@ function SMA_GetJobOutput($url,$token,$sname,$jname,$date)
 
     return $outputstatus
 }
-New-Alias "opgdjo" SMA_GetJobOutput
+New-Alias "opgdjo" OpCon_GetJobOutput
 
 #Gets a user from the OpCon database
-function SMA_GetUserByComment($comment,$url,$token)
+function OpCon_GetUserByComment($comment,$url,$token)
 {
     $hdr = @{"authorization" = $token}
 
@@ -1813,7 +1813,7 @@ function SMA_GetUserByComment($comment,$url,$token)
 }
 
 #Get vision tags
-function SMA_GetTags($url,$token,$date)
+function OpCon_GetTags($url,$token,$date)
 {
     $hdr = @{"authorization" = $token}
 
@@ -1840,10 +1840,10 @@ function SMA_GetTags($url,$token,$date)
 
     return $schedule
 }
-New-Alias "opgtag" SMA_GetTags
+New-Alias "opgtag" OpCon_GetTags
 
 #Gets daily jobs by tag for a date
-function SMA_GetDailyJobsByTag($url,$token,$date,$tag)
+function OpCon_GetDailyJobsByTag($url,$token,$date,$tag)
 {
     $hdr = @{"authorization" = $token}
 
@@ -1865,10 +1865,10 @@ function SMA_GetDailyJobsByTag($url,$token,$date,$tag)
 
     return $count
 }
-New-Alias "opgdjtag" SMA_GetDailyJobsByTag
+New-Alias "opgdjtag" OpCon_GetDailyJobsByTag
 
 #Get Agent count by status
-function SMA_GetAgentCountByStatus($url,$token)
+function OpCon_GetAgentCountByStatus($url,$token)
 {
     $hdr = @{"authorization" = $token}
 
@@ -1892,7 +1892,7 @@ function SMA_GetAgentCountByStatus($url,$token)
 }
 
 #Get dependencies for a job
-function SMA_GetDependencyByJob($url,$token,$sname,$jname,$date,$jid)
+function OpCon_GetDependencyByJob($url,$token,$sname,$jname,$date,$jid)
 {
     $hdr = @{"authorization" = $token}
 
@@ -1907,7 +1907,7 @@ function SMA_GetDependencyByJob($url,$token,$sname,$jname,$date,$jid)
             $date = Get-Date -format "yyyy-MM-dd"
         }
 
-        $jid = (SMA_GetDailyJob -url $url -token $token -sname $sname -jname $jname -date $date).id
+        $jid = (OpCon_GetDailyJob -url $url -token $token -sname $sname -jname $jname -date $date).id
     }
 
     $uriget = $url + "/api/dailygraphedges/" + $jid
@@ -1925,7 +1925,7 @@ function SMA_GetDependencyByJob($url,$token,$sname,$jname,$date,$jid)
 }
 
 #Gets all daily jobs in a schedule
-function SMA_GetDailyJobsBySchedule($url,$token,$sname,$date)
+function OpCon_GetDailyJobsBySchedule($url,$token,$sname,$date)
 {
     $hdr = @{"authorization" = $token}
 
@@ -1948,10 +1948,10 @@ function SMA_GetDailyJobsBySchedule($url,$token,$sname,$date)
     return $jobs
 }
 
-#DEPRECATED (use SMA_GetServiceRequestChoice) Function to get a Service Request choice dropdown
-function SMA_GetSSChoice($dropdown,$url,$token,$button)
+#DEPRECATED (use OpCon_GetServiceRequestChoice) Function to get a Service Request choice dropdown
+function OpCon_GetSSChoice($dropdown,$url,$token,$button)
 {
-    $get = SMA_GetSSButton -button $button -url $url -token $token
+    $get = OpCon_GetSSButton -button $button -url $url -token $token
     if(@($get).Count -eq 1)
     {
         $get = $get[0]
@@ -1966,12 +1966,12 @@ function SMA_GetSSChoice($dropdown,$url,$token,$button)
 
     return $details.request.variables.variable.choice.items.ChildNodes
 }
-New-Alias "opgssc" SMA_GetSSChoice
+New-Alias "opgssc" OpCon_GetSSChoice
 
 #DEPRECATED (renamed as GetServiceRequestInput) Function to get a Service Request input field
-function SMA_GetSSInput($url,$token,$button)
+function OpCon_GetSSInput($url,$token,$button)
 {
-    $get = SMA_GetSSButton -button $button -url $url -token $token
+    $get = OpCon_GetSSButton -button $button -url $url -token $token
     if(@($get).Count -eq 1)
     {
         $get = $get[0]
@@ -1988,12 +1988,12 @@ function SMA_GetSSInput($url,$token,$button)
 }
 
 #Creates an OpCon Role
-function SMA_CreateRole($url,$token,$rolename,$inheritSchedule,$inheritMach,$inheritMachGroup,$permissions)
+function OpCon_CreateRole($url,$token,$rolename,$inheritSchedule,$inheritMach,$inheritMachGroup,$permissions)
 {
     $hdr = @{"authorization" = $token}
     
     #Check if role already exists
-    if(SMA_GetRole -url $url -token $token -rolename "$rolename")
+    if(OpCon_GetRole -url $url -token $token -rolename "$rolename")
     {
         Write-Host "Role already exists"
     }
@@ -2035,15 +2035,15 @@ function SMA_CreateRole($url,$token,$rolename,$inheritSchedule,$inheritMach,$inh
         return $role
     }
 }
-New-Alias "opcrol" SMA_CreateRole
+New-Alias "opcrol" OpCon_CreateRole
 
 #Creates a Service Request
-function SMA_CreateServiceRequest($url,$token,$name,$doc,$html,$details,$disable,$hide,$category,$categoryName,$roles)
+function OpCon_CreateServiceRequest($url,$token,$name,$doc,$html,$details,$disable,$hide,$category,$categoryName,$roles)
 {
     $hdr = @{"authorization" = $token}
     
     #Check if button already exists
-    $buttons = @(SMA_GetSSButton -url $url -token $token -button "$name") 
+    $buttons = @(OpCon_GetSSButton -url $url -token $token -button "$name") 
     if($buttons.Count -eq 1)
     {
         Write-Host "Service Request already exists"
@@ -2062,7 +2062,7 @@ function SMA_CreateServiceRequest($url,$token,$name,$doc,$html,$details,$disable
 
         if($categoryName)
         {
-            $categoryObject = SMA_GetServiceRequestCategory -url $url -token $token -category "$categoryName"
+            $categoryObject = OpCon_GetServiceRequestCategory -url $url -token $token -category "$categoryName"
             $body | Add-Member -type NoteProperty -name "serviceRequestCategory" -value @{id=$categoryObject.id}
         }
         elseif($category)
@@ -2086,11 +2086,11 @@ function SMA_CreateServiceRequest($url,$token,$name,$doc,$html,$details,$disable
 }
 
 #Deletes a Service Request
-function SMA_DeleteServiceRequest($url,$token,$name)
+function OpCon_DeleteServiceRequest($url,$token,$name)
 {
     $hdr = @{"authorization" = $token}
     
-    $button = SMA_GetSSButton -url $url -token $token -button "$name"
+    $button = OpCon_GetSSButton -url $url -token $token -button "$name"
     
     #Check if button exists
     if($button)
@@ -2114,21 +2114,21 @@ function SMA_DeleteServiceRequest($url,$token,$name)
         Write-Host "Service Request does not exist"
     }
 }
-New-Alias "opdss" SMA_DeleteServiceRequest
+New-Alias "opdss" OpCon_DeleteServiceRequest
 
 #Adds a role to a SS button
-function SMA_AddSSButtonRole($url,$token,$button,$rolename)
+function OpCon_AddSSButtonRole($url,$token,$button,$rolename)
 {
     $hdr = @{"authorization" = $token}
     
-    $getbutton = SMA_GetSSButton -url $url -token $token -button $button
+    $getbutton = OpCon_GetSSButton -url $url -token $token -button $button
     $rolecheck = "true"
     $getbutton.roles | ForEach-Object{ If($_.name -eq $rolename)
                                        { $rolecheck = "false" }
                                      }
     If($rolecheck -eq "true")
     {
-        $getrole = SMA_GetRole -url $url -token $token -rolename $rolename
+        $getrole = OpCon_GetRole -url $url -token $token -rolename $rolename
         $getbutton.roles += $getrole
 
         $uripost = $url + "/api/ServiceRequests/" + $getbutton.id
@@ -2149,14 +2149,14 @@ function SMA_AddSSButtonRole($url,$token,$button,$rolename)
         Write-Host "Button already has role $rolename !"
     }
 }
-New-Alias "opassrol" SMA_AddSSButtonRole
+New-Alias "opassrol" OpCon_AddSSButtonRole
 
 #Updates a particular field on a SS button
-function SMA_UpdateSSButton($url,$token,$button,$field,$value)
+function OpCon_UpdateSSButton($url,$token,$button,$field,$value)
 {
     $hdr = @{"authorization" = $token}
     
-    $getbutton = SMA_GetSSButton -url $url -token $token -button $button
+    $getbutton = OpCon_GetSSButton -url $url -token $token -button $button
     $getbutton.$field = $value
 
     $uripost = $url + "/api/ServiceRequests/" + $getbutton.id
@@ -2174,7 +2174,7 @@ function SMA_UpdateSSButton($url,$token,$button,$field,$value)
 }
 
 #Function to get a Service Request category/categories
-function SMA_GetServiceRequestCategory($url,$token,$category,$id)
+function OpCon_GetServiceRequestCategory($url,$token,$category,$id)
 {
     $hdr = @{"authorization" = $token}
     
@@ -2211,15 +2211,15 @@ function SMA_GetServiceRequestCategory($url,$token,$category,$id)
 
     return $categories
 }
-New-Alias "opgsscat" SMA_GetServiceRequestCategory
+New-Alias "opgsscat" OpCon_GetServiceRequestCategory
 
 #Removes a specific role from a user in OpCon
-function SMA_RemoveUserRole($user,$rolename,$url,$token)
+function OpCon_RemoveUserRole($user,$rolename,$url,$token)
 {
     $hdr = @{"authorization" = $token}
 
-    $userinfo = SMA_GetUser -username $user -url $url -token $token
-    $role = @(SMA_GetRole -rolename $rolename -url $url -token $token)
+    $userinfo = OpCon_GetUser -username $user -url $url -token $token
+    $role = @(OpCon_GetRole -rolename $rolename -url $url -token $token)
     if($role.Count -eq 1)
     {
         $role = $role[0]
@@ -2251,10 +2251,10 @@ function SMA_RemoveUserRole($user,$rolename,$url,$token)
 
     return $result
 }
-New-Alias "opdurol" SMA_RemoveUserRole
+New-Alias "opdurol" OpCon_RemoveUserRole
 
 #Handles schedule builds
-function SMA_ScheduleBuild($url,$token,$schedules,$dates,$logfile,$overwrite,$properties,$hold,$namedInstance,$machineName)
+function OpCon_ScheduleBuild($url,$token,$schedules,$dates,$logfile,$overwrite,$properties,$hold,$namedInstance,$machineName)
 {
     $hdr = @{"authorization" = $token}
 
@@ -2328,7 +2328,7 @@ function SMA_ScheduleBuild($url,$token,$schedules,$dates,$logfile,$overwrite,$pr
     $wait = 15
     for($x=1;$x -lt $wait;$x++)
     {
-        $status = SMA_ScheduleBuildStatus -url $url -token $token -id $build.id
+        $status = OpCon_ScheduleBuildStatus -url $url -token $token -id $build.id
         If($status.message -eq "Completed")
         { $x = $wait }
         Else
@@ -2344,7 +2344,7 @@ function SMA_ScheduleBuild($url,$token,$schedules,$dates,$logfile,$overwrite,$pr
 }
 
 #Checks the status of a Schedule Build
-function SMA_ScheduleBuildStatus($url,$token,$id)
+function OpCon_ScheduleBuildStatus($url,$token,$id)
 {
     $hdr = @{"authorization" = $token}
     
@@ -2363,7 +2363,7 @@ function SMA_ScheduleBuildStatus($url,$token,$id)
 }
 
 #Gets a count of schedules by status
-function SMA_ScheduleCountByStatus($url,$token,$dates,$name,$failedJobs,$categories)
+function OpCon_ScheduleCountByStatus($url,$token,$dates,$name,$failedJobs,$categories)
 {
     $hdr = @{"authorization" = $token}
     
@@ -2416,7 +2416,7 @@ function SMA_ScheduleCountByStatus($url,$token,$dates,$name,$failedJobs,$categor
 }
 
 #Gets schedule properties
-function SMA_GetScheduleProperty($url,$token,$id,$name,$schedule,$date)
+function OpCon_GetScheduleProperty($url,$token,$id,$name,$schedule,$date)
 {
     $hdr = @{"authorization" = $token}
     
@@ -2432,7 +2432,7 @@ function SMA_GetScheduleProperty($url,$token,$id,$name,$schedule,$date)
         { $date = Get-Date -Format "yyyy/MM/dd" }
 
         
-        $getsid = SMA_GetSchedule -url $url -token $token -date $date -sname $schedule
+        $getsid = OpCon_GetSchedule -url $url -token $token -date $date -sname $schedule
         $uriget = $uriget + $getsid.id + "/properties"
     }
     Else
@@ -2457,10 +2457,10 @@ function SMA_GetScheduleProperty($url,$token,$id,$name,$schedule,$date)
 
     return $properties
 }
-New-Alias "opgsp" SMA_GetScheduleProperty
+New-Alias "opgsp" OpCon_GetScheduleProperty
 
 #Gets access codes
-function SMA_GetAccessCode($url,$token,$id,$name)
+function OpCon_GetAccessCode($url,$token,$id,$name)
 {
     $hdr = @{"authorization" = $token}
     
@@ -2492,7 +2492,7 @@ function SMA_GetAccessCode($url,$token,$id,$name)
 }
 
 #Creates a new access code
-function SMA_CreateAccessCode($url,$token,$name)
+function OpCon_CreateAccessCode($url,$token,$name)
 {
     $hdr = @{"authorization" = $token}
     
@@ -2515,11 +2515,11 @@ function SMA_CreateAccessCode($url,$token,$name)
 }
 
 #Sets a new name for an access code
-function SMA_SetAccessCode($url,$token,$id,$oldName,$name)
+function OpCon_SetAccessCode($url,$token,$id,$oldName,$name)
 {
     If($oldname -or $id)
     {
-        $accessCode = SMA_GetAccessCode -url $url -token $token -name $oldname -id $id
+        $accessCode = OpCon_GetAccessCode -url $url -token $token -name $oldname -id $id
 
         $counter = 0
         $accessCode | ForEach-Object{ $counter++ }
@@ -2562,7 +2562,7 @@ function SMA_SetAccessCode($url,$token,$id,$oldName,$name)
 }
 
 #Gets a batch user or list of users
-function SMA_GetBatchUser($url,$token,$id,$ids,$loginName,$roleName,$includeRoles)
+function OpCon_GetBatchUser($url,$token,$id,$ids,$loginName,$roleName,$includeRoles)
 {
     $hdr = @{"authorization" = $token}
     
@@ -2609,10 +2609,10 @@ function SMA_GetBatchUser($url,$token,$id,$ids,$loginName,$roleName,$includeRole
     
     return $batchUsers
 }
-New-Alias "opgbu" SMA_GetBatchUser
+New-Alias "opgbu" OpCon_GetBatchUser
 
 #Creates a new batch user
-function SMA_CreateBatchUser($url,$token,$platformName,$loginName,$password,$roleNames)
+function OpCon_CreateBatchUser($url,$token,$platformName,$loginName,$password,$roleNames)
 {
     $hdr = @{"authorization" = $token}
     
@@ -2647,7 +2647,7 @@ function SMA_CreateBatchUser($url,$token,$platformName,$loginName,$password,$rol
         $roleNameArray = $roleNames.Split(",")
         for($x=0;$x -lt $roleNameArray.Count;$x++)
         {
-            $roleObject= SMA_GetRole -url $url -token $token -rolename $roleNameArray[$x]
+            $roleObject= OpCon_GetRole -url $url -token $token -rolename $roleNameArray[$x]
             if($roleObject)
             {
                 $roleIdArray += @{ id=$roleObject.id;name=$roleObject.name }
@@ -2689,14 +2689,14 @@ function SMA_CreateBatchUser($url,$token,$platformName,$loginName,$password,$rol
 
     return $batchUser
 }
-New-Alias "opcbu" SMA_CreateBatchUser
+New-Alias "opcbu" OpCon_CreateBatchUser
 
 #Allows for updating a batch use with new roles
-function SMA_SetBatchUser($url,$token,$loginName,$roleNames)
+function OpCon_SetBatchUser($url,$token,$loginName,$roleNames)
 {
     If($loginName)
     {
-        $user = SMA_GetBatchUser -url $url -token $token -loginName $loginName
+        $user = OpCon_GetBatchUser -url $url -token $token -loginName $loginName
 
         $counter = 0
         $user | ForEach-Object{ $counter++ }
@@ -2720,7 +2720,7 @@ function SMA_SetBatchUser($url,$token,$loginName,$roleNames)
         $roleNameArray = $roleNames.Split(",")
         for($x=0;$x -lt $roleNameArray.Count;$x++)
         {
-            $roleObject= SMA_GetRole -url $url -token $token -rolename $roleNameArray[$x]
+            $roleObject= OpCon_GetRole -url $url -token $token -rolename $roleNameArray[$x]
             if($roleObject)
             {
                 $roleIdArray += @{ id=$roleObject.id;name=$roleObject.name }
@@ -2752,14 +2752,14 @@ function SMA_SetBatchUser($url,$token,$loginName,$roleNames)
 
     return $update
 }
-New-Alias "opubu" SMA_SetBatchUser
+New-Alias "opubu" OpCon_SetBatchUser
 
 #Starts or stops an OpCon agent based on parameters *New version of ChangeAgentStatus*
-function SMA_MachineAction($url,$token,$agentName,$action)
+function OpCon_MachineAction($url,$token,$agentName,$action)
 {
     $hdr = @{"authorization" = $token}
 
-    $machine = SMA_GetAgent -agentname $agentName -url $url -token $token
+    $machine = OpCon_GetAgent -agentname $agentName -url $url -token $token
 
     $count = 0
     $machine | ForEach-Object{ $count++ }
@@ -2801,7 +2801,7 @@ function SMA_MachineAction($url,$token,$agentName,$action)
     {
         for($x = 0;$x -lt 20;$x++)
         {
-            $result = SMA_GetMachineAction -url $url -token $token -id $machineaction.id
+            $result = OpCon_GetMachineAction -url $url -token $token -id $machineaction.id
         
             if($result.result -eq "success")
             { $x = 20 }
@@ -2819,7 +2819,7 @@ function SMA_MachineAction($url,$token,$agentName,$action)
 }
 
 #Gets information about an OpCon Agent
-function SMA_GetMachineAction($url,$token,$id)
+function OpCon_GetMachineAction($url,$token,$id)
 {
     $hdr = @{"authorization" = $token}
 
@@ -2847,7 +2847,7 @@ function SMA_GetMachineAction($url,$token,$id)
 }
 
 #Gets information about a submitted Job Action
-function SMA_GetJobAction($url,$token,$id)
+function OpCon_GetJobAction($url,$token,$id)
 {
     $hdr = @{"authorization" = $token}
 
@@ -2875,9 +2875,9 @@ function SMA_GetJobAction($url,$token,$id)
 }
 
 #Function to get a Service Request choice dropdown
-function SMA_GetServiceRequestChoice($url,$token,$button,$dropdown)
+function OpCon_GetServiceRequestChoice($url,$token,$button,$dropdown)
 {
-    $details = SMA_GetServiceRequestInput -url $url -token $token -button $button
+    $details = OpCon_GetServiceRequestInput -url $url -token $token -button $button
     
     if($dropdown)
     {
@@ -2898,10 +2898,10 @@ function SMA_GetServiceRequestChoice($url,$token,$button,$dropdown)
 }
 
 #Function to get a Service Request input field
-function SMA_GetServiceRequestInput($url,$token,$button,$input)
+function OpCon_GetServiceRequestInput($url,$token,$button,$input)
 {
 
-    $get = SMA_GetSSButton -button $button -url $url -token $token
+    $get = OpCon_GetSSButton -button $button -url $url -token $token
     if(@($get).Count -eq 1)
     {
         $get = $get[0]
@@ -2918,7 +2918,7 @@ function SMA_GetServiceRequestInput($url,$token,$button,$input)
 }
 
 #Gets information about all Self Service button
-function SMA_GetAllSSButtons($url,$token)
+function OpCon_GetAllSSButtons($url,$token)
 {
     $hdr = @{"authorization" = $token}
     $uriget = $url + "/api/ServiceRequests?name="
@@ -2937,7 +2937,7 @@ function SMA_GetAllSSButtons($url,$token)
 }
 
 #Gets information about a Self Service button
-function SMA_GetServiceRequest($url,$token,$id,$button)
+function OpCon_GetServiceRequest($url,$token,$id,$button)
 {
     $hdr = @{"authorization" = $token}
 
@@ -2971,10 +2971,10 @@ function SMA_GetServiceRequest($url,$token,$id,$button)
 
     return $getbutton
 }
-New-Alias "opgssb" SMA_GetServiceRequest
+New-Alias "opgssb" OpCon_GetServiceRequest
 
 #Function to get all Service Request categories
-function SMA_GetAllServiceRequestCategories($url,$token)
+function OpCon_GetAllServiceRequestCategories($url,$token)
 {
     $hdr = @{"authorization" = $token}
     $uriget = $url + "/api/ServiceRequestCategories?name="
@@ -2992,17 +2992,17 @@ function SMA_GetAllServiceRequestCategories($url,$token)
 }
 
 #Updates a Self Service category
-function SMA_OverwriteServiceRequestCategory($url,$token,$category,$destCategory,$destCategoryId)
+function OpCon_OverwriteServiceRequestCategory($url,$token,$category,$destCategory,$destCategoryId)
 {
     $hdr = @{"authorization" = $token}
 
 	if($destCategory)
 	{
-		$oldCategory = (SMA_GetServiceRequestCategory -url $url -token $token -category $destCategory).id
+		$oldCategory = (OpCon_GetServiceRequestCategory -url $url -token $token -category $destCategory).id
 	}
 	elseif($destCategoryId)
 	{
-		$oldCategory = (SMA_GetServiceRequestCategory -url $url -token $token -id $destCategoryId).id
+		$oldCategory = (OpCon_GetServiceRequestCategory -url $url -token $token -id $destCategoryId).id
 	}
 	else
 	{
@@ -3032,17 +3032,17 @@ function SMA_OverwriteServiceRequestCategory($url,$token,$category,$destCategory
 }
 
 #Updates a particular field on a SS button
-function SMA_OverwriteServiceRequest($url,$token,$button,$destButton,$destButtonId)
+function OpCon_OverwriteServiceRequest($url,$token,$button,$destButton,$destButtonId)
 {
     $hdr = @{"authorization" = $token}
 
 	if($destButton)
 	{
-		$oldButton = (SMA_GetServiceRequest -url $url -token $token -button $destButton).id
+		$oldButton = (OpCon_GetServiceRequest -url $url -token $token -button $destButton).id
 	}
 	elseif($destButtonId)
 	{
-		$oldButton = (SMA_GetServiceRequest -url $url -token $token -id $destButtonId).id
+		$oldButton = (OpCon_GetServiceRequest -url $url -token $token -id $destButtonId).id
 	}
 	else
 	{
@@ -3072,7 +3072,7 @@ function SMA_OverwriteServiceRequest($url,$token,$button,$destButton,$destButton
 }
 
 #Gets information about all Self Service button
-function SMA_GetAllServiceRequests($url,$token)
+function OpCon_GetAllServiceRequests($url,$token)
 {
     $hdr = @{"authorization" = $token}
     $uriget = $url + "/api/ServiceRequests?name="
@@ -3091,7 +3091,7 @@ function SMA_GetAllServiceRequests($url,$token)
 }
 
 # Gets Daily Vision Workspaces
-function SMA_GetDailyVisionWorkspaces($url,$token)
+function OpCon_GetDailyVisionWorkspaces($url,$token)
 {
     $hdr = @{"authorization" = $token}
     $uriget = $url + "/api/dailyvisionworkspaces"
@@ -3108,10 +3108,10 @@ function SMA_GetDailyVisionWorkspaces($url,$token)
     
     return $vision
 }
-New-Alias "opgdv" SMA_GetDailyVisionWorkspaces
+New-Alias "opgdv" OpCon_GetDailyVisionWorkspaces
 
 # Gets Master Vision Workspaces
-function SMA_GetMasterVisionWorkspaces($url,$token)
+function OpCon_GetMasterVisionWorkspaces($url,$token)
 {
     $hdr = @{"authorization" = $token}
     $uriget = $url + "/api/mastervisionworkspaces"
@@ -3130,7 +3130,7 @@ function SMA_GetMasterVisionWorkspaces($url,$token)
 }
 
 # Updates Master Vision workspaces based on passed in object
-function SMA_UpdateMasterVisionWorkspaces($url,$token,$id,$workspaceObj)
+function OpCon_UpdateMasterVisionWorkspaces($url,$token,$id,$workspaceObj)
 {
     $hdr = @{"authorization" = $token}
     $uriput = $url + "/api/mastervisionworkspaces/$id"
@@ -3151,7 +3151,7 @@ function SMA_UpdateMasterVisionWorkspaces($url,$token,$id,$workspaceObj)
 }
 
 # Gets OpCon server options
-function SMA_GetServerOptions($url,$token)
+function OpCon_GetServerOptions($url,$token)
 {
     $hdr = @{"authorization" = $token}
 
@@ -3169,10 +3169,10 @@ function SMA_GetServerOptions($url,$token)
     
     return $servOptions
 }
-New-Alias "opgservo" SMA_GetServerOptions
+New-Alias "opgservo" OpCon_GetServerOptions
 
 # Updates Server Options
-function SMA_UpdateServerOptions($url,$token,$optionsObj)
+function OpCon_UpdateServerOptions($url,$token,$optionsObj)
 {
     $hdr = @{"authorization" = $token}
 
@@ -3191,10 +3191,10 @@ function SMA_UpdateServerOptions($url,$token,$optionsObj)
     
     return $servOptions
 }
-New-Alias "opuservo" SMA_UpdateServerOptions
+New-Alias "opuservo" OpCon_UpdateServerOptions
 
 #Gets information about a submitted Schedule Action
-function SMA_GetScheduleAction($url,$token,$id)
+function OpCon_GetScheduleAction($url,$token,$id)
 {
     $hdr = @{"authorization" = $token}
 
@@ -3214,11 +3214,11 @@ function SMA_GetScheduleAction($url,$token,$id)
 }
 
 #Function to add entries to a Service Request choice selection
-function SMA_AddSSChoiceMassImport($addname,$addvalue,$getdropdown,$url,$token,$buttonname)
+function OpCon_AddSSChoiceMassImport($addname,$addvalue,$getdropdown,$url,$token,$buttonname)
 {
     $hdr = @{"authorization" = $token}
 
-    $get = SMA_GetSSButton -button $buttonname -url $url -token $token
+    $get = OpCon_GetSSButton -button $buttonname -url $url -token $token
     if(@($get).Count -eq 1)
     {
         $get = $get[0]
@@ -3260,7 +3260,7 @@ function SMA_AddSSChoiceMassImport($addname,$addvalue,$getdropdown,$url,$token,$
 }
 
 #Updates all the calendar dates
-function SMA_UpdateAllCalendarDates($url,$token,$name,$id,$dates)
+function OpCon_UpdateAllCalendarDates($url,$token,$name,$id,$dates)
 {
     $hdr = @{"authorization" = $token}
 
@@ -3269,9 +3269,9 @@ function SMA_UpdateAllCalendarDates($url,$token,$name,$id,$dates)
         $counter = 0
         
         if($name)
-        { $calendar = SMA_GetCalendar -url $url -token $token -name $name }
+        { $calendar = OpCon_GetCalendar -url $url -token $token -name $name }
         if($id)
-        { $calendar = SMA_GetCalendar -url $url -token $token -id $id }
+        { $calendar = OpCon_GetCalendar -url $url -token $token -id $id }
 
         $calendar | ForEach-Object{ $counter++ }
 
@@ -3311,7 +3311,7 @@ function SMA_UpdateAllCalendarDates($url,$token,$name,$id,$dates)
 }
 
 #Gets daily jobs
-function SMA_GetDailyJobs($url,$token,$filter)
+function OpCon_GetDailyJobs($url,$token,$filter)
 {
     $hdr = @{"authorization" = $token}
 
@@ -3336,7 +3336,7 @@ function SMA_GetDailyJobs($url,$token,$filter)
 
     return $jobs
 }
-New-Alias "opgdjs" SMA_GetDailyJobs
+New-Alias "opgdjs" OpCon_GetDailyJobs
 
 <#
 .SYNOPSIS
@@ -3361,9 +3361,9 @@ Function opconnect($count,$login)
         
         Clear-Host # Clears console
         
-        $auth = SMA_Login -url $url -user $user -password ((New-Object PSCredential "user",$password).GetNetworkCredential().Password)
+        $auth = OpCon_Login -url $url -user $user -password ((New-Object PSCredential "user",$password).GetNetworkCredential().Password)
         $password = "" # Clear out password variable
-        $newLogin = [pscustomobject]@{"id"=$count;"name"=$url.Substring($url.IndexOf("//")+2,$url.LastIndexOf(":")-($url.IndexOf("//")+2));"url"=$url;"user"=$user;"token"=("Token " + $auth.id);"expiration"=($auth.validUntil);"release"=((SMA_OpConAPIVersion -url $url).opConRestApiProductVersion)}
+        $newLogin = [pscustomobject]@{"id"=$count;"name"=$url.Substring($url.IndexOf("//")+2,$url.LastIndexOf(":")-($url.IndexOf("//")+2));"url"=$url;"user"=$user;"token"=("Token " + $auth.id);"expiration"=($auth.validUntil);"release"=((OpCon_OpConAPIVersion -url $url).opConRestApiProductVersion)}
     }
     else
     {
@@ -3372,18 +3372,18 @@ Function opconnect($count,$login)
         
         Clear-Host # Clears console
         
-        $auth = SMA_Login -url $login.url -user $login.user -password ((New-Object PSCredential "user",$password).GetNetworkCredential().Password)
+        $auth = OpCon_Login -url $login.url -user $login.user -password ((New-Object PSCredential "user",$password).GetNetworkCredential().Password)
         $password = "" # Clear out password variable
         $login.token = ("Token " + $auth.id)
         $login.expiration = ($auth.validUntil)
-        $login.release = ((SMA_OpConAPIVersion -url $login.url).opConRestApiProductVersion)
+        $login.release = ((OpCon_OpConAPIVersion -url $login.url).opConRestApiProductVersion)
         $newLogin = $login
     }
     
     return $newLogin
 }
 
-Function SMA_ReadLogErrors($path)
+Function OpCon_ReadLogErrors($path)
 {
     If(test-path $path)
     {
@@ -3403,9 +3403,9 @@ Function SMA_ReadLogErrors($path)
         Write-Host "Could not access $path"
     }
 }
-New-Alias "oprle" SMA_ReadLogErrors
+New-Alias "oprle" OpCon_ReadLogErrors
 
-Function SMA_ReadSAMLogEvents($path)
+Function OpCon_ReadSAMLogEvents($path)
 {
     If(test-path $path)
     {
@@ -3425,10 +3425,10 @@ Function SMA_ReadSAMLogEvents($path)
         Write-Host "Could not access $path"
     }
 }
-New-Alias "oprslev" SMA_ReadSAMLogEvents
+New-Alias "oprslev" OpCon_ReadSAMLogEvents
 
 # Loads frequently used paths/connections
-Function SMA_LoadConfig($path)
+Function OpCon_LoadConfig($path)
 {
     if(test-path $path)
     {
@@ -3453,7 +3453,7 @@ Function SMA_LoadConfig($path)
 }
 
 # Gets scripts by name
-function SMA_GetScripts($url,$token,$scriptname,$scripttypename,$scriptids,$limit,$offset)
+function OpCon_GetScripts($url,$token,$scriptname,$scripttypename,$scriptids,$limit,$offset)
 {
     $hdr = @{"authorization" = $token}
 
@@ -3471,10 +3471,10 @@ function SMA_GetScripts($url,$token,$scriptname,$scripttypename,$scriptids,$limi
 
     return $scripts
 }
-New-Alias "opgscripts" SMA_GetScripts
+New-Alias "opgscripts" OpCon_GetScripts
 
 # Gets all the versions of a script
-function SMA_GetScriptVersions($url,$token,$id)
+function OpCon_GetScriptVersions($url,$token,$id)
 {
     $hdr = @{"authorization" = $token}
 
@@ -3492,10 +3492,10 @@ function SMA_GetScriptVersions($url,$token,$id)
 
     return $scripts
 }
-New-Alias "opgscriptv" SMA_GetScriptVersions
+New-Alias "opgscriptv" OpCon_GetScriptVersions
 
 # Gets the details of a specific script version
-function SMA_GetScript($url,$token,$scriptId,$versionId)
+function OpCon_GetScript($url,$token,$scriptId,$versionId)
 {
     $hdr = @{"authorization" = $token}
 
@@ -3513,4 +3513,4 @@ function SMA_GetScript($url,$token,$scriptId,$versionId)
 
     return $script
 }
-New-Alias "opgscript" SMA_GetScript
+New-Alias "opgscript" OpCon_GetScript
