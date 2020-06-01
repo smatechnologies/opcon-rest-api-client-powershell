@@ -9,7 +9,7 @@ if(Test-Path $opconmodule)
 {
     #Verify PS version is at least 3.0
     if($PSVersionTable.PSVersion.Major -ge 3)
-    { Import-Module -Name $opconmodule -Force #-Verbose  #uncomment this option to see a list of functions  }
+    { Import-Module -Name $opconmodule -Force } #-Verbose  #uncomment this option to see a list of functions  }
     else
     {
         Write-Host "Powershell version needs to be 3.0 or higher!"
