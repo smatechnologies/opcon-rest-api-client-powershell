@@ -1,15 +1,14 @@
 ﻿param(
-    $opconmodule = "C:\OpCon_Module.psm1",
-    $restapi,
-    $token, 
-    $url
+    $opconmodule = ".\OpConModule.psm1",
+    $token, # API token (or you can use a temporary token)
+    $url    # OpCon API Url ie: https://<opconserver>:9010
 )
 
 if(Test-Path $opconmodule)
 {
     #Verify PS version is at least 3.0
     if($PSVersionTable.PSVersion.Major -ge 3)
-    { Import-Module -Name $opconmodule -Force } #-Verbose  #uncomment this option to see a list of functions  }
+    { Import-Module -Name $opconmodule -Force }  
     else
     {
         Write-Host "Powershell version needs to be 3.0 or higher!"
@@ -22,26 +21,27 @@ else
     Exit 100
 }
 
-##Needed when accessing a non-local OpCon API (Powershell v5.1 only)
-#OpCon_IgnoreSelfSignedCerts
+
+##Needed when accessing a non-local OpCon API 
+#OpCon_IgnoreSelfSignedCerts (Powershell v3-5.1 only)
+#OpCon_SkipCerts
 
 #API Version check, also verifies connectivity
-OpCon_OpConAPIVersion -url $url
-
+#OpCon_APIVersion -url $url
 
 #Login for Token
-#OpCon_Login -url $url -user $user -password $password -appname $appname
+#$id = "Token " + (OpCon_Login -url $url -user test_DEMO -password 0pC0nxp$).id #-appname $appname
 
 #Checks SAM service status
 #OpCon_SAMStatus -url $url -token $token
 
 #User Example
-#OpCon_GetUser -url $url -token $token -username "ocadm"
-#OpCon_UpdateUser -url $url -token $token -username "test_DEMO" -field "loginName" -value "zzztest_DEMO"
+#OpCon_GetUser -url $url -token $token -username "test_DEMO"
+#OpCon_UpdateUser -url $url -token $token -username "test_DEMO" -field "name" -value "Roundtable Demo"
 #OpCon_GetUserByComment -url $url -token $token -comment "TEST"
 
 #Global Property Example
-#OpCon_GetGlobalProperty -url $url -token $token -name "7ZIP*"
+#OpCon_GetGlobalProperty -url $url -token $token -name '$date'
 #OpCon_CreateGlobalProperty2 -url $url -token ************ -name "test5" -value "test" #-encrypt $encrypt 
 
 #Calendar Example
@@ -61,20 +61,19 @@ OpCon_OpConAPIVersion -url $url
 #OpCon_SetResource -url $url -token $token -name "DemoAuditFiles" -value "+1" 
 
 #Job Action examples
-#OpCon_JobAction -url $url -token $token -sname "TEST" -jname "OPCON API SETUP" -action "JOB:GOOD" -date (Get-Date -Format MM-dd-yyyy)
+#OpCon_JobAction -url $url -token $token -sname "ROUNDTABLE_BRUCE JERNELL" -jname "OPCON API EXAMPLE" -action "JOB:GOOD" -date (Get-Date -Format "MM/dd/yyyy")
 
 #Gets information about a daily job
-#OpCon_GetDailyJob -url $url -token $token -sname "AMAZON ALEXA" -jname "PLACEHOLDER"
-#OpCon_GetDailyJOb -url $url -token $token -sname "Adhoc" -jname "Set Failure SLA"
+#OpCon_GetDailyJob -url $url -token $token | FOrmat-Table Schedule,JobName #-sname "SMAUtility" -jname "AUDIT HISTORY PURGE" -date (Get-Date -Format "MM/dd/yyyy")
+#OpCon_GetDailyJob -url $url -token $token -sname "Adhoc" -jname "Set Failure SLA"
 #OpCon_GetDailyJob -url $url -token $token -sname "ENVIRONMENT_MACHINES[MACHINES SUBSCHEDULE]" -jname "*" #-date "12-15-2018"
 #OpCon_GetJobOutput -url $url -token $token -sname "SMAUtility" -jname "Audit History Purge" #default is todays date
 
 #Job Info examples
 #OpCon_GetDailyJobsBySchedule -url $url -token $token -date (Get-Date -Format MM-dd-yyyy) -schedule SMAUtility
-#OpCon_GetDailyJobsByStatus -url $url -token $token  #-status "FINISHED&20OK" -date (Get-Date -Format MM-dd-yyyy)
+#OpCon_GetDailyJobsByStatus -url $url -token $token -status "FAILED" -date (Get-Date -Format MM-dd-yyyy)
 #OpCon_GetDailyJobsCountByStatus -url $url -token $token
 #$id = (OpCon_GetDailyJobs -url $url -token $token -filter "name=SMA DATABASE BACKUP*").id
-#OpCon_GetDailyJob -url $url -token $token -sname "SMAUtility" -jname "SMA DATABASE BACKUP"
 
 #Schedule Action examples
 #OpCon_GetSchedule -url $url -token $token -sname "SMAUtility" -date (Get-Date -Format MM-dd-yyyy)
@@ -89,7 +88,8 @@ OpCon_OpConAPIVersion -url $url
 #OpCon_CreateAgent -agentname "Test" -agenttype "Windows" -agentsocket "3100" -agentjors "3110" -token $token -url $url
 #OpCon_UpdateAgent -agentname "Test" -field "allowKillJob" -value true -token $token -url $url
 #OpCon_SubmitMachineAction -agentname "Test" -action "down" -url $url -token $token
-#(OpCon_GetAgent -url $url -token $token | Where-Object{ $_.agentName }).type.description | Sort-Object -Unique #-agentname "Localhost"
+#OpCon_GetAgent -url $url -token $token -agentname "LOCALHOST"
+#OpCon_GetAgent -url $url -token $token | Out-GridView -Title "OpCon Agents"
 
 #Standard function for returning job output, a custom function may be required if there are multiple output files
 #(OpCon_GetJobOutput -url $url -token $token -sname "SMAUtility" -jname "SMA DATABASE BACKUP" -date (Get-Date -Format MM-dd-yyyy)).jobInstanceActionItems[0]
@@ -104,3 +104,10 @@ OpCon_OpConAPIVersion -url $url
 
 #Gets input field information from a Self Service button
 #OpCon_GetSSInput -url $url -token $token -button "Send document"
+
+#Scripts
+<#
+$id = OpCon_GetScripts -url $url -token $token -scriptname "API_Demo"
+$latest = OpCon_GetScriptVersions -url $url -token $token -id $id[0].id
+(OpCon_GetScript -url $url -token $token -versionId $latest.versions[-1].id).content | Invoke-Expression
+#>
