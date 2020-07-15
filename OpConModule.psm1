@@ -911,16 +911,15 @@ function OpCon_GetDailyJob($url,$token,$sname,$jname,$date,$id)
 { 
     if($id)
     { $uriget = $url + "/api/dailyjobs/" + $id }
+    elseif($sname)
+    { $uriget = $url + "/api/dailyjobs?scheduleName=" + $sname }
+    elseif($date)
+    { $uriget = $url + "/api/dailyjobs?dates=" + $date }
     else
-    {
-        if($date)
-        { $uriget = $url + "/api/dailyjobs?scheduleName=" + $sname + "&dates=" + $date }
-        else
-        { $uriget = $url + "/api/dailyjobs?scheduleName=" + $sname }
-    }
+    { $uriget = $url + "/api/dailyjobs" }
 
     try
-    { $jobs = (Invoke-RestMethod -Method GET -Uri $uriget -Headers @{"authorization" = $token} -ContentType "application/json") }
+    { $jobs = Invoke-RestMethod -Method GET -Uri $uriget -Headers @{"authorization" = $token} -ContentType "application/json" }
     catch [Exception]
     {
         Write-Host $_.Exception
@@ -1336,16 +1335,16 @@ function OpCon_GetSSButton($url,$token,$id,$button)
 #Gets a user from the OpCon database
 function OpCon_GetUser($username,$url,$token)
 {
-    $hdr = @{"authorization" = $token}
-
-    $uriget = $url + "/api/users?loginName=" + $username + "&includeDetails=true"
+    if($username)
+    { $uriget = $url + "/api/users?loginName=" + $username + "&includeDetails=true" }
+    else
+    { $uriget = $url + "/api/users?includeDetails=true" }
 
     try
-    {
-        $user = (Invoke-RestMethod -Method GET -Uri $uriget -Headers $hdr -ContentType "application/json")
-    }
+    { $user = Invoke-RestMethod -Method GET -Uri $uriget -Headers @{"authorization" = $token} -ContentType "application/json" }
     catch [Exception]
     {
+        Write-host $_.Exception
 		Write-Host $_.Exception.Message
     }
 
@@ -1542,6 +1541,8 @@ function OpCon_GetDailyJobsCountByStatus($url,$token,$status,$machine,$tags)
     { $uriget = $url + "/api/dailyjobs/count_by_status?startMachine=" + $machine }
     elseif($tags)
     { $uriget = $url + "/api/dailyjobs/count_by_status?tags=" + $tags }
+    else
+    { $uriget = $url + "/api/dailyjobs/count_by_status" }
 
     try
     { $count = Invoke-RestMethod -Method GET -Uri $uriget -Headers @{"authorization" = $token} -ContentType "application/json" }
