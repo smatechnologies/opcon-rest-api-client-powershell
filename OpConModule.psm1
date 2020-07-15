@@ -503,22 +503,14 @@ function OpCon_GetAgent($url,$token,$agentname,$id)
 
     #If id is passed use it, otherwise name
     If($id)
-    {
-        $uriget = $url + "/api/machines/" + $id + "&extendedProperties=true"
-    }
+    { $uriget = $url + "/api/machines/" + $id + "&extendedProperties=true" }
     ElseIf($agentname)
-    {
-        $uriget = $url + "/api/machines?name=" + $agentname + "&extendedProperties=true"
-    }
+    { $uriget = $url + "/api/machines?name=" + $agentname + "&extendedProperties=true" }
     Else
-    {
-        $uriget = $url + "/api/machines?extendedProperties=true"
-    }
+    { $uriget = $url + "/api/machines?extendedProperties=true" }
 
     try
-    {
-        $machine = (Invoke-Restmethod -Method GET -Uri $uriget -Headers $hdr -ContentType "application/json")
-    }
+    { $machine = Invoke-Restmethod -Method GET -Uri $uriget -Headers $hdr -ContentType "application/json" }
     catch [Exception]
     {
         Write-Host $_
@@ -916,38 +908,27 @@ New-Alias "opc-scheduleaction" OpCon_ScheduleAction
 
 #Gets information about a daily job
 function OpCon_GetDailyJob($url,$token,$sname,$jname,$date,$id)
-{
-    $hdr = @{"authorization" = $token}
-    
+{ 
     if($id)
-    {
-        $uriget = $url + "/api/dailyjobs/" + $id
-    }
+    { $uriget = $url + "/api/dailyjobs/" + $id }
     else
     {
         if($date)
-        {
-            $uriget = $url + "/api/dailyjobs?scheduleName=" + $sname + "&dates=" + $date
-        }
+        { $uriget = $url + "/api/dailyjobs?scheduleName=" + $sname + "&dates=" + $date }
         else
-        {
-            $uriget = $url + "/api/dailyjobs?scheduleName=" + $sname
-        }
+        { $uriget = $url + "/api/dailyjobs?scheduleName=" + $sname }
     }
 
     try
-    {
-        $jobs = (Invoke-RestMethod -Method GET -Uri $uriget -Headers $hdr -ContentType "application/json")
-    }
+    { $jobs = (Invoke-RestMethod -Method GET -Uri $uriget -Headers @{"authorization" = $token} -ContentType "application/json") }
     catch [Exception]
     {
+        Write-Host $_.Exception
         Write-Host $_.Exception.Message
     }
 
     if($jname)
-    {
-        $jobs = $jobs | Where-Object{ $_.name -like "*$jname*" }
-    }
+    { $jobs = $jobs | Where-Object{ $_.name -like "*$jname*" } }
 
     return $jobs
 }
@@ -1180,17 +1161,14 @@ New-Alias "opc-createcalendar" OpCon_CreateCalendar
 #Checks the status of the SAM service
 function OpCon_SAMStatus($url,$token)
 {
-    $hdr = @{"authorization" = $token}
-
     $uriget = $url + "/api/ServiceStatus"
 
     try
-    {
-        $status = Invoke-Restmethod -Method GET -Uri $uriget -Headers $hdr -ContentType "application/json"
-    }
+    { $status = Invoke-Restmethod -Method GET -Uri $uriget -Headers @{"authorization" = $token} -ContentType "application/json" }
     catch [Exception]
     {
-        write-host $_.Exception.Message
+        Write-Host $_.Exception
+        Write-Host $_.Exception.Message
     }
     
     return $status
@@ -1203,11 +1181,10 @@ function OpCon_APIVersion($url)
     $uriget = $url + "/api/version"
 
     try
-    {
-        $version = Invoke-Restmethod -Method GET -Uri $uriget -ContentType "application/json"
-    }
+    { $version = Invoke-Restmethod -Method GET -Uri $uriget -ContentType "application/json" }
     catch [Exception]
     {
+        Write-Host $_.Exception
         write-host $_.Exception.Message
     }
     
@@ -1557,23 +1534,20 @@ function OpCon_UpdateUser($url,$token,$username,$field,$value)
 New-Alias "opc-updateuser" OpCon_UpdateUser
 
 #Get schedule information
-function OpCon_GetDailyJobsCountByStatus($url,$token,$date,$status)
+function OpCon_GetDailyJobsCountByStatus($url,$token,$status,$machine,$tags)
 {
-    $hdr = @{"authorization" = $token}
-
-    if(!$date)
-    {
-        $date = Get-Date -format "yyyy-MM-dd"
-    }
-
-    $uriget = $url + "/api/dailyjobs/count_by_status" #?terminationDescription=" + $status
+    if($status)
+    { $uriget = $url + "/api/dailyjobs/count_by_status?terminationDescription=" + $status }
+    elseif($machine)
+    { $uriget = $url + "/api/dailyjobs/count_by_status?startMachine=" + $machine }
+    elseif($tags)
+    { $uriget = $url + "/api/dailyjobs/count_by_status?tags=" + $tags }
 
     try
-    {
-        $count = (Invoke-RestMethod -Method GET -Uri $uriget -Headers $hdr -ContentType "application/json")
-    }
+    { $count = Invoke-RestMethod -Method GET -Uri $uriget -Headers @{"authorization" = $token} -ContentType "application/json" }
     catch [Exception]
     {
+        Write-Host $_.Exception
         Write-Host $_.Exception.Message
     }
 
@@ -1653,20 +1627,14 @@ New-Alias "opc-dailyjob" OpCon_GetSpecificDailyJob
 #Attempts to get an output file from a job run
 function OpCon_SubmitJobInstanceFileAction($url,$token,$sname,$jname,$date,$jobnumber,$path)
 {
-    $hdr = @{"authorization" = $token}
-
     if(!$jobnumber)
-    {
-        $jobnumber = (OpCon_GetDailyJob -url $url -token $token -sname $sname -jname $jname -date $date).jobNumber
-    }
+    { $jobnumber = (OpCon_GetDailyJob -url $url -token $token -sname $sname -jname $jname -date $date).jobNumber }
 
     $uripost = $url + "/api/jobinstanceactions"
     $body = '{"action":"FILE","jobInstanceActionItems":[{"id":' + $jobnumber + ',"jorsRequestParameters":' + $path + '}]}'
 
     try
-    {
-        $file = (Invoke-RestMethod -Method POST -Uri $uripost -Headers $hdr -Body $body -ContentType "application/json")
-    }
+    { $file = (Invoke-RestMethod -Method POST -Uri $uripost -Headers @{"authorization" = $token} -Body $body -ContentType "application/json") }
     catch [Exception]
     {
         Write-Host $_
@@ -1678,19 +1646,16 @@ function OpCon_SubmitJobInstanceFileAction($url,$token,$sname,$jname,$date,$jobn
 New-Alias "opc-jobinstancefileaction" OpCon_SubmitJobInstanceFileAction
 
 #Attempts to get a list of output files from a job run
-function OpCon_SubmitJobInstanceListAction($url,$token,$sname,$jname,$date)
+function OpCon_SubmitJobInstanceListAction($url,$token,$sname,$jname,$date,$jobNumber)
 {
-    $hdr = @{"authorization" = $token}
-
-    $jobnumber = (OpCon_GetDailyJob -url $url -token $token -sname $sname -jname $jname -date $date).jobNumber
+    if(!$jobNumber)
+    { $jobnumber = (OpCon_GetDailyJob -url $url -token $token -sname $sname -jname $jname -date $date).jobNumber }
 
     $uripost = $url + "/api/jobinstanceactions"
     $body = '{"action":"LIST","jobInstanceActionItems":[{"id":' + $jobnumber + '}]}'
 
     try
-    {
-        $list = (Invoke-RestMethod -Method POST -Uri $uripost -Headers $hdr -Body $body -ContentType "application/json")
-    }
+    { $list = Invoke-RestMethod -Method POST -Uri $uripost -Headers @{"authorization" = $token} -Body $body -ContentType "application/json" }
     catch [Exception]
     {
         Write-Host $_
@@ -1704,16 +1669,13 @@ New-Alias "opc-jobinstancelistaction" OpCon_SubmitJobInstanceListAction
 #Gets information about a previously submitted job action
 function OpCon_GetJobInstanceAction($url,$token,$id)
 {
-    $hdr = @{"authorization" = $token}
-
     $uriget = $url + "/api/jobinstanceactions/" + $id
 
     try
-    {
-        $status = (Invoke-RestMethod -Method GET -Uri $uriget -Headers $hdr -ContentType "application/json")
-    }
+    { $status = Invoke-RestMethod -Method GET -Uri $uriget -Headers @{"authorization" = $token} -ContentType "application/json" }
     catch [Exception]
     {
+        Write-Host $_.Exception
         Write-Host $_.Exception.Message
     }
 
@@ -1722,35 +1684,27 @@ function OpCon_GetJobInstanceAction($url,$token,$id)
 New-Alias "opc-jobinstanceaction" OpCon_GetJobInstanceAction
 
 #Standard function for returning job output, a custom function may be required if there are multiple output files
-function OpCon_GetJobOutput($url,$token,$sname,$jname,$date)
+function OpCon_GetJobOutput($url,$token,$sname,$jname,$date,$jobNumber)
 {
-    $list = OpCon_SubmitJobInstanceListAction -url $url -token $token -sname $sname -jname $jname -date $date
-    $liststatus = OpCon_GetJobInstanceAction -url $url -token $token -id $list.id
+    if($jobNumber)
+    { $liststatus = OpCon_SubmitJobInstanceListAction -url $url -token $token -jobnumber $jobNumber }
+    else
+    { $liststatus = OpCon_SubmitJobInstanceListAction -url $url -token $token -sname $sname -jname $jname -date $date }
+    
     while((($liststatus.result -ne "success") -and ($liststatus.result -ne "failed")))
-    {
-        $liststatus = OpCon_GetJobInstanceAction -url $url -token $token -id $list.id
-    }
+    { $liststatus = OpCon_GetJobInstanceAction -url $url -token $token -id $liststatus.id }
 
     if($liststatus.result -eq "success")
-    {
-        $path = $liststatus.jobInstanceActionItems.files | ConvertTo-Json
-    }
+    { $path = $liststatus.jobInstanceActionItems.files | ConvertTo-Json }
     else
-    {
-        Write-Host "Problem getting job output file list"
-    }
-
-    $output = OpCon_SubmitJobInstanceFileAction -url $url -token $token -jobnumber $liststatus.jobInstanceActionItems.id -path $path
-    $outputstatus = OpCon_GetJobInstanceAction -url $url -token $token -id $output.id
+    { $liststatus | Out-Host ; Write-Host "Problem getting job output file list" }
+    
+    $outputstatus = OpCon_SubmitJobInstanceFileAction -url $url -token $token -jobnumber $liststatus.jobInstanceActionItems.id -path $path
     while((($outputstatus.result -ne "success") -and ($outputstatus.result -ne "failed")))
-    {
-        $outputstatus = OpCon_GetJobInstanceAction -url $url -token $token -id $output.id
-    }
+    { $outputstatus = OpCon_GetJobInstanceAction -url $url -token $token -id $outputstatus.id }
 
     if($outputstatus.result -eq "failed")
-    {
-        Write-Host "Problem loading data from jors file"
-    }
+    { Write-Host "Problem loading data from jors file" }
 
     return $outputstatus
 }
@@ -1779,30 +1733,23 @@ New-Alias "opc-userbycomment" OpCon_GetUserByComment
 #Get vision tags
 function OpCon_GetTags($url,$token,$date)
 {
-    $hdr = @{"authorization" = $token}
-
     if(!$date)
-    {
-        $date = Get-Date -format "yyyy-MM-dd"
-    }
+    { $date = Get-Date -format "yyyy-MM-dd" }
 
     $uriget = $url + "/api/vision/cards?dates=" + $date
 
     try
-    {
-        $schedule = (Invoke-RestMethod -Method GET -Uri $uriget -Headers $hdr -ContentType "application/json")
-    }
+    { $tags = Invoke-RestMethod -Method GET -Uri $uriget -Headers @{"authorization" = $token} -ContentType "application/json" }
     catch [Exception]
     {
+        Write-Host $_.Exception
         Write-Host $_.Exception.Message
     }
 
-    if($schedule.Count -eq 0)
-    {
-        Write-Host "No schedules found!"
-    }
+    if($tags.Count -eq 0)
+    { Write-Host "No tags found!" }
 
-    return $schedule
+    return $tags
 }
 New-Alias "opc-gettags" OpCon_GetTags
 
@@ -2572,7 +2519,7 @@ function OpCon_GetBatchUser($url,$token,$id,$ids,$loginName,$roleName,$includeRo
 New-Alias "opc-getbatchuser" OpCon_GetBatchUser
 
 #Creates a new batch user
-function OpCon_CreateBatchUser($url,$token,$platformName,$loginName,$password,$roleNames)
+function OpCon_CreateBatchUser($url,$token,$platformName,$loginName,$password,$roleNames,$roleIds)
 {
     $hdr = @{"authorization" = $token}
     
@@ -2618,6 +2565,8 @@ function OpCon_CreateBatchUser($url,$token,$platformName,$loginName,$password,$r
             }
         }
     }
+    elseif($roleIds)
+    { $roleIdArray = $roleIds }
 
     #Verify login name
     If(!$loginName)
@@ -2712,7 +2661,7 @@ function OpCon_SetBatchUser($url,$token,$loginName,$roleNames)
 
     return $update
 }
-New-Alias "opc-updatebatchuser" OpCon_SetBatchUser
+New-Alias "opc-rolebatchuser" OpCon_SetBatchUser
 
 #Starts or stops an OpCon agent based on parameters *New version of ChangeAgentStatus*
 function OpCon_MachineAction($url,$token,$agentName,$action)
@@ -3406,4 +3355,78 @@ function OpCon_SkipCerts
     { $PSDefaultParameterValues.Add("Invoke-RestMethod:SkipCertificateCheck",$true) }
     catch
     { $null }
+}
+
+function OpCon_UpdateBatchUser($url,$token,$id,$field,$value)
+{  
+    $user = OpCon_GetBatchUser -url $url -token $token -id $id
+
+    if($field -eq "password")
+    { $user | Add-Member -type NoteProperty -name "password" -value $value }
+    else 
+    { $user.$field = $value }
+
+    #Update batch user
+    $uriput = $url + "/api/batchusers/" + $id
+    try
+    {
+        $update = Invoke-Restmethod -Method PUT -Uri $uriput -Headers @{"authorization" = $token} -Body ($user | ConvertTo-JSON -Depth 5) -ContentType "application/json"
+    }
+    catch [Exception]
+    {
+        write-host $_
+        write-host $_.Exception.Message
+    }
+
+    return $update
+}
+
+#Get a specific role
+function OpCon_GetRoles($url,$token)
+{
+    $uriget = $url + "/api/roles?name="
+
+    try
+    {
+        $roles = Invoke-RestMethod -Method GET -Uri $uriget -Headers @{"authorization" = $token} -ContentType "application/json"
+    }
+    catch [Exception]
+    {
+        Write-Host $_
+		Write-Host $_.Exception.Message
+    }
+
+    return $roles
+}
+
+function OpCon_PropertyExpression($url,$token,$expression)
+{
+    $uripost = $url + "/api/PropertyExpression"
+
+    try
+    {
+        $result = Invoke-RestMethod -Method POST -Uri $uripost -Body (@{"Expression" = "$expression"} | ConvertTo-JSON) -Headers @{"authorization" = $token} -ContentType "application/json"
+    }
+    catch [Exception]
+    {
+        Write-Host $_
+		Write-Host $_.Exception.Message
+    }
+
+    return $result
+}
+
+function OpCon_Reports($url,$token,$limit,$status)
+{
+    $uriget = $url + "/api/dailyjobs?&status=$status&limit=$limit"
+
+    try
+    { $result = Invoke-RestMethod -Method GET -Uri $uriget -Headers @{"authorization" = $token} -ContentType "application/json" }
+    catch [Exception]
+    {
+        Write-Host $_
+		Write-Host $_.Exception.Message
+    }
+
+    return $result
 }
