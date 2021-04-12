@@ -1082,8 +1082,6 @@ New-Alias "opc-getcalendar" OpCon_GetCalendar
 #Updates a calendar
 function OpCon_UpdateCalendar($url,$token,$name,$id,$date)
 {
-    $hdr = @{"authorization" = $token}
-
     if($name -or $id)
     {
         $counter = 0
@@ -1096,35 +1094,96 @@ function OpCon_UpdateCalendar($url,$token,$name,$id,$date)
         $calendar | ForEach-Object{ $counter++ }
 
         if($counter -ne 1)
+        { Write-Host "More than 1 or no calendars returned!" }
+        else 
         {
-            Write-Host "More than 1 or no calendars returned!"
+            if($date)
+            {
+                if($calendar[0].dates)
+                { 
+                    if($date.IndexOf(";") -ge 0)
+                    {
+                        $date.Split(";") | ForEach-Object{ 
+                            if($_ -notin $calendar[0].dates)
+                            { 
+                                if($null -eq $dateList)
+                                { $dateList = $_ }
+                                else 
+                                { $dateList = $dateList + ";" + $_ }
+                            }
+                         }
+                    }
+                    else 
+                    {
+                        if($date -notin $calendar[0].dates)
+                        { $dateList = $date }
+                    }
+                    
+                    if($null -ne $dateList )
+                    { 
+                        $calendar[0].dates += $dateList 
+                        $body = $calendar[0]
+
+                        try
+                        { $calendaradd = Invoke-RestMethod -Method PUT -Uri ($url + "/api/calendars/" + $calendar[0].id) -Body ($body | ConvertTo-JSON -Depth 7) -Headers @{"authorization" = $token} -ContentType "application/json" }
+                        catch [Exception]
+                        {
+                            Write-Host $_
+                            Write-Host $_.Exception.Message
+                        }
+                
+                        return $calendaradd
+                    }
+                    else 
+                    { Write-Host "Date/s $date already in calendar $name !" }
+                }
+                else 
+                {
+                    if(!$calendar[0].description)
+                    { $description = "" }
+                    else 
+                    { $description = $calendar[0].description }
+        
+                    if(!$calendar[0].schedule)
+                    {                     
+                        $body = @{
+                            "id" = $calendar[0].id;
+                            "type" = $calendar[0].type;
+                            "name" = $calendar[0].Name;
+                            "dates" = @( $date );
+                            "description" = $description
+                        } 
+                    }
+                    else 
+                    { 
+                        $schedule = $calendar[0].schedule 
+                        $body = @{
+                            "id" = $calendar[0].id;
+                            "type" = $calendar[0].type;
+                            "schedule" = $schedule;
+                            "name" = $calendar[0].Name;
+                            "dates" = @( $date );
+                            "description" = $description
+                        }
+                    }
+
+                    try
+                    { $calendaradd = Invoke-RestMethod -Method PUT -Uri ($url + "/api/calendars/" + $calendar[0].id) -Body ($body | ConvertTo-JSON -Depth 7) -Headers @{"authorization" = $token} -ContentType "application/json" }
+                    catch [Exception]
+                    {
+                        Write-Host $_
+                        Write-Host $_.Exception.Message
+                    }
+            
+                    return $calendaradd
+                }
+            }
+            else
+            { Write-Host "No date specified!" }          
         }
     }
     else
-    {
-        Write-Host "No name or id specified!"
-    }
-    
-    if($date)
-    {
-        $uriput = $url + "/api/calendars/" + $calendar[0].id
-        $calendar[0].dates += "$date"
-        $body = $calendar[0] | ConvertTo-JSON -Depth 7
-
-        try
-        {
-            $calendaradd = (Invoke-RestMethod -Method PUT -Uri $uriput -Body $body -Headers $hdr -ContentType "application/json")
-        }
-        catch [Exception]
-        {
-            Write-Host $_
-            Write-Host $_.Exception.Message
-        }
-
-        return $calendaradd
-    }
-    else
-    { Write-Host "No date specified!" }
+    { Write-Host "No name or id specified!" }
 }
 New-Alias "opc-updatecalendar" OpCon_UpdateCalendar
 
