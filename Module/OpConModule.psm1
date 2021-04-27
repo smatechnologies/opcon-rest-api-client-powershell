@@ -1415,30 +1415,23 @@ New-Alias "opc-getuser" OpCon_GetUser
 #Get a specific role
 function OpCon_GetRole($url,$token,$id,$rolename)
 {
-    $hdr = @{"authorization" = $token}
-
     If($id)
-    {
-        $uriget = $url + "/api/roles/" + $id
-    }
+    { $uriget = $url + "/api/roles/" + $id }
     ElseIf($rolename)
+    { $uriget = $url + "/api/roles?name=" + $rolename }
+
+    if($rolename -or $id)
     {
-        $uriget = $url + "/api/roles?name=" + $rolename
+        try
+        { $role = Invoke-RestMethod -Method GET -Uri $uriget -Headers @{"authorization" = $token} -ContentType "application/json" }
+        catch [Exception]
+        {
+            Write-Host $_
+            Write-Host $_.Exception.Message
+        }
     }
     Else
-    {
-        Write-Host "No Id or Rolename specified"
-    }
-
-    try
-    {
-        $role = Invoke-RestMethod -Method GET -Uri $uriget -Headers $hdr -ContentType "application/json"
-    }
-    catch [Exception]
-    {
-        Write-Host $_
-		Write-Host $_.Exception.Message
-    }
+    { Write-Host "No Id or Rolename specified" }
 
     return $role
 }
@@ -1447,41 +1440,32 @@ New-Alias "opc-getrole" OpCon_GetRole
 #Adds a specific role to a user in OpCon
 function OpCon_AddUserRole($user,$rolename,$url,$token)
 {
-    $hdr = @{"authorization" = $token}
-
     $userinfo = OpCon_GetUser -username $user -url $url -token $token
     if($userinfo.Count -eq 0)
+    {  Write-Host "User $user does not exist" }
+    else 
     {
-        Write-Host "User $user does not exist"
-    }
-    $role = @(OpCon_GetRole -rolename $rolename -url $url -token $token)
-    if($role.Count -eq 1)
-    {
-        $role = $role[0]
-    }
-    else
-    {
-        Write-Host "Role $rolename not found or multiple rolenames found!"
-    }
-
-    if($userinfo[0].Roles -notcontains "$rolename") 
-    { 
-        $userinfo[0].Roles += ,@{id=$role.id;name=$rolename} 
-        $body = $userinfo[0] | ConvertTo-Json -Depth 4
-
-        $uriput = $url + "/api/users/" + $userinfo.id
-        try
+        $role = @(OpCon_GetRole -rolename $rolename -url $url -token $token)
+        if($role.Count -eq 1)
         {
-            $user = (Invoke-RestMethod -Method PUT -Uri $uriput -Headers $hdr -Body $body -ContentType "application/json")
+            $role = $role[0]
+            if($userinfo[0].Roles -notcontains "$rolename") 
+            { 
+                $userinfo[0].Roles += ,@{id=$role.id;name=$rolename} 
+
+                try
+                { $user = Invoke-RestMethod -Method PUT -Uri ($url + "/api/users/" + $userinfo.id) -Headers @{"authorization" = $token} -Body ($userinfo[0] | ConvertTo-Json -Depth 4) -ContentType "application/json" }
+                catch [Exception]
+                { 
+                    Write-Host $_
+                    Write-Host $_.Exception.Message 
+                }
+            }
+            else
+            { Write-Host "Role $rolename already on user account, not adding" }
         }
-        catch [Exception]
-        {
-		    Write-Host $_.Exception.Message
-        }
-    }
-    else
-    {
-        Write-Host "Role $rolename already on user account, not adding"
+        else
+        { Write-Host "Role $rolename not found or multiple rolenames found!" }
     }
 
     return $user
@@ -1491,34 +1475,28 @@ New-Alias "opc-adduserrole" OpCon_AddUserRole
 #Creates an OpCon user
 function OpCon_CreateUser($url,$token,$username,$password,$roleid,$rolename,$email,$notes,$comment)
 {
-    $hdr = @{"authorization" = $token}
-
     $get = OpCon_Getuser -url $url -token $token -username $username
     if(@($get).Count -eq 1)
+    { Write-host "User " $username " already exists" }
+    else 
     {
-        Write-host "User " $username " already exists"
-    }
-
-    if(!$roleid -and $rolename)
-    {
-        $role = OpCon_GetRole -url $url -token $token -rolename $rolename
-        if(@($role).Count -eq 1)
+        if(!$roleid -and $rolename)
         {
-            $roleid = $role[0].id
+            $role = OpCon_GetRole -url $url -token $token -rolename $rolename
+            if(@($role).Count -eq 1)
+            { $roleid = $role[0].id }
         }
-    }
 
-    #Create OpCon user account
-    $uripost = $url + "/api/users"
-    $post = '{"loginName":"' + $username + '","name":"' + $username + '","password":"' + $password + '","externalPassword":"' + $password + '","details":"' + $notes + '","moreDetails":"' + $comment + '","roles":[{"Id":' + $roleid + '}],"email":"' + $email + '"}'
-    
-    try
-    {
-        $create = (Invoke-RestMethod -Method POST -Uri $uripost -Headers $hdr -Body "$post" -ContentType "application/json")
-    }
-    catch [Exception]
-    {
-		Write-Host $_.Exception.Message
+        #Create OpCon user account
+        $post = '{"loginName":"' + $username + '","name":"' + $username + '","password":"' + $password + '","externalPassword":"' + $password + '","details":"' + $notes + '","moreDetails":"' + $comment + '","roles":[{"Id":' + $roleid + '}],"email":"' + $email + '"}'
+        
+        try
+        { $create = Invoke-RestMethod -Method POST -Uri ($url + "/api/users") -Headers @{"authorization" = $token} -Body "$post" -ContentType "application/json" }
+        catch [Exception]
+        {
+            Write-Host $_
+            Write-Host $_.Exception.Message
+        }
     }
 
     return $create
