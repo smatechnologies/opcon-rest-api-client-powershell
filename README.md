@@ -10,6 +10,7 @@ You will need to import the module file into the example script before trying an
 
 Example:
 ```
+$ErrorActionPreference = "stop" # To stop the script on any errors
 Import-Module "C:\OpConModule.psm1" -Force
 ```
 
