@@ -2,15 +2,15 @@
 The module and example script file in this repository show how you can manage your SMA Technologies OpCon environment from Powershell.
 
 # Prerequisites
-* <a href url="https://www.smatechnologies.com">OpCon v19.1</a>
-* Powershell v5.1
+* <a href url="https://www.smatechnologies.com">OpCon v19.1+ (some functions require newer releases of OpCon)</a>
+* Powershell v5.1+
 
 # Instructions
-You will need to import the module file into the example script before trying any examples.  Also you will to to know your OpCon API configuration for your environment, the default location for the configuration file is "C:\ProgramData\OpConXPS\SAM\SMAOpConRestAPI.ini".
+You will need to import the module file into the example script before trying any examples.  Also you will to to know your OpCon API/SM port configuration for your environment.
 
 Example:
 ```
-Import-Module "C:\OpCon_Module.psm1" -Force
+Import-Module "C:\OpConModule.psm1" -Force
 ```
 
 # Disclaimer
