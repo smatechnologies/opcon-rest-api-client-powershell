@@ -1,88 +1,112 @@
-#PowerShell Module file for OpCon API
+# PowerShell Module file for OpCon API
+# Use Import-Module to use these functions inside another PS script
 ##################################################################################################
 
+# For skipping self signed certificates in Powershell 7 (core)
+function OpCon_SkipCerts
+{
+    if($PSVersionTable.PSVersion.Major -lt 6)
+    {
+        try
+        {
+            Add-Type -TypeDefinition  @"
+            using System.Net;
+            using System.Security.Cryptography.X509Certificates;
+            public class TrustAllCertsPolicy : ICertificatePolicy
+            {
+                public bool CheckValidationResult(
+                ServicePoint srvPoint, X509Certificate certificate,
+                WebRequest request, int certificateProblem)
+                {
+                    return true;
+                }
+            }
+"@
+            [System.Net.ServicePointManager]::CertificatePolicy = New-Object TrustAllCertsPolicy
+        }
+        catch
+        { Write-Host "Error Ignoring Self Signed Certs" }
+    }
+    else 
+    {
+        try
+        { $PSDefaultParameterValues.Add("Invoke-RestMethod:SkipCertificateCheck",$true) }
+        catch
+        { $null }   
+    }
+}
 
-#Used if calling an API that is not local to the machine, **Powershell 3-5 only***
+# Used if calling an API that is not local to the machine, **Powershell 3-5 only***
+# Keeping this function for legacy purposes, but references the newer "all-in-one" version
 function OpCon_IgnoreSelfSignedCerts
 {
-    try
-    {
-        Add-Type -TypeDefinition  @"
-        using System.Net;
-        using System.Security.Cryptography.X509Certificates;
-        public class TrustAllCertsPolicy : ICertificatePolicy
-        {
-             public bool CheckValidationResult(
-             ServicePoint srvPoint, X509Certificate certificate,
-             WebRequest request, int certificateProblem)
-             {
-                 return true;
-            }
-        }
-"@
-      }
-    catch
-    {
-        Write-Host "Error Ignoring Self Signed Certs"
-        Exit 102
-    }
-    [System.Net.ServicePointManager]::CertificatePolicy = New-Object TrustAllCertsPolicy
+    OpCon_SkipCerts
 }
 
 #Get user/app token
-function OpCon_Login($url,$user,$password,$appname)
+function OpCon_Login
 {
-    $uripost = $url + "/api/tokens"
+    Param(
+        [Parameter(Mandatory=$true)] [string]$url
+        ,[Parameter(Mandatory=$true)] [string]$user
+        ,[Parameter(Mandatory=$true)] [string]$password
+        ,[string] $appname
+    )
 
     #Builds user hashtable
     if($appname)
     {
-        $body = @{"user"=
-                        @{"loginName"=$user;"password"=$password};
-                        "tokenType"=
-                                    @{"id"=$appname;"type"="Application"}
-                    }
+        $body = @{
+            "user"=@{
+                "loginName"=$user;
+                "password"=$password};
+                "tokenType"=@{
+                    "id"=$appname;
+                    "type"="Application"
+            }
+        }
     }
     else 
     {
-        $body = @{"user"=
-                        @{"loginName"=$user;"password"=$password};
-                        "tokenType"=
-                                    @{"type"="User"}
-                    }        
+        $body = @{
+            "user"= @{
+                "loginName"=$user;
+                "password"=$password};
+                "tokenType"=@{
+                    "type"="User"
+                }
+        }        
     }
                 
     try
     {
-        $apiuser = Invoke-Restmethod -Method POST -Uri $uripost -Body ($body | ConvertTo-Json) -ContentType "application/json"
+        return Invoke-Restmethod -Method POST -Uri ($url + "/api/tokens") -Body ($body | ConvertTo-Json) -ContentType "application/json"
     }
     catch [Exception]
     {
         write-host $_
         write-host $_.Exception.Message
     }
-
-    return $apiuser
 }
 New-Alias "opc-login" OpCon_GetLogin
 
 #Delete token from database
-function OpCon_DeleteAPIToken($url,$token)
+function OpCon_DeleteAPIToken
 {
-    $hdr = @{"authorization" = $token}
+    Param(
+        [Parameter(Mandatory=$true)] [string]$url
+        ,[Parameter(Mandatory=$true)] [string]$token
+    )
 
-    $uridelete = $url + "/api/tokens"
     try
     {
-        $apitokendelete = (Invoke-Restmethod -Method DELETE -Uri $uridelete -Header $hdr -ContentType "application/json")
+        return Invoke-Restmethod -Method DELETE -Uri ($url + "/api/tokens") -Header @{"authorization" = $token} -ContentType "application/json"
     }
     catch [Exception]
     {
         write-host $_
         write-host $_.Exception.Message
     }
-
-    return $apitokendelete
 }
 New-Alias "opc-deleteapitoken" OpCon_DeleteAPIToken
 
@@ -99,10 +123,15 @@ ID, Value, Encryption of global property.
 
 C:\PS> opgp -Name "My Property"
 #>
-function OpCon_GetGlobalProperty($url,$token,$id,$name)
+function OpCon_GetGlobalProperty
 {
-    $hdr = @{"authorization" = $token}
-    
+    Param(
+        [Parameter(Mandatory=$true)] [string]$url
+        ,[Parameter(Mandatory=$true)] [string]$token
+        ,[string] $id
+        ,[string] $name
+    )
+
     #Get property information
     If($id)
     {
@@ -119,45 +148,59 @@ function OpCon_GetGlobalProperty($url,$token,$id,$name)
 
     try
     {
-        $globalproperty = Invoke-Restmethod -Method GET -Uri $uriget -Headers $hdr -ContentType "application/json"
+        return Invoke-Restmethod -Method GET -Uri $uriget -Headers @{"authorization" = $token} -ContentType "application/json"
     }
     catch [Exception]
     {
         write-host $_
         write-host $_.Exception.Message
     }
-    
-    return $globalproperty
 }
 New-Alias "opc-getglobalproperty" OpCon_GetGlobalProperty
 New-Alias "opc-getglobalproperties" OpCon_GetGlobalProperty
 New-Alias "opc-getgp" OpCon_GetGlobalProperty
 
 #Creates a new global property
-function OpCon_CreateGlobalProperty($name,$value,$encrypt,$url,$token)
+function OpCon_CreateGlobalProperty
 {   
-    #Get property information
-    $body = New-Object System.Object
-    $body | Add-Member -type NoteProperty -name "name" -value $name
-    $body | Add-Member -type NoteProperty -name "value" -value $value
-    $body | Add-Member -type NoteProperty -name "encrypted" -value $encrypt 
+    Param(
+        [Parameter(Mandatory=$true)] [string]$url
+        ,[Parameter(Mandatory=$true)] [string]$token
+        ,[Parameter(Mandatory=$true)] [string]$name
+        ,[Parameter(Mandatory=$true)] [string]$value
+        ,[string] $encrypt
+    )
 
-    $uripost = $url + "/api/globalproperties"
-    try
-    { $globalproperty = Invoke-Restmethod -Method POST -Uri $uripost -Headers @{"authorization" = $token} -Body ($body | ConvertTo-Json) -ContentType "application/json" }
-    catch [Exception]
-    {
-        write-host $_
-        write-host $_.Exception.Message
+    #Get property information
+    $body = @{
+        "name" = $name;
+        "value" = $value;
+        "encrypted" = $encrypt
     }
 
-    return $globalproperty
+    try
+    { 
+        return nvoke-Restmethod -Method POST -Uri ($url + "/api/globalproperties") -Headers @{"authorization" = $token} -Body ($body | ConvertTo-Json) -ContentType "application/json" 
+    }
+    catch [Exception]
+    {
+        write-host $_.Exception
+        write-host $_.Exception.Message
+    }
 }
 New-Alias "opc-createproperty" OpCon_CreateGlobalProperty
 
 #Sets a global property to a value
-function OpCon_SetGlobalProperty($url,$token,$id,$name,$value)
+function OpCon_SetGlobalProperty
 {
+    Param(
+        [Parameter(Mandatory=$true)] [string]$url
+        ,[Parameter(Mandatory=$true)] [string]$token
+        ,[Parameter(Mandatory=$true)] [string]$value
+        ,[string] $id
+        ,[string] $name
+    )
+
     If($name -or $id)
     {
         $property = OpCon_GetGlobalProperty -url $url -token $token -name $name -id $id
@@ -167,46 +210,42 @@ function OpCon_SetGlobalProperty($url,$token,$id,$name,$value)
 
         if($counter -ne 1)
         {
-            Write-Host "Too many or no properties found!"
+            Write-Output "Too many or no properties found!"
+            Exit 1
+        }
+        else 
+        {
+            $property[0].value = $value
+
+            #Update property value
+            try
+            {
+                return Invoke-Restmethod -Method PUT -Uri ($url + "/api/globalproperties/" + $property[0].id) -Headers @{"authorization" = $token} -Body ($property[0] | ConvertTo-Json) -ContentType "application/json"
+            }
+            catch [Exception]
+            {
+                write-output $_
+                write-output $_.Exception.Message
+            }       
         }
     }
     Else
     {
-        Write-Host "Id or Name not specified!"
+        Write-Output "Id or Name not specified!"
+        Exit 1
     }
-
-    $hdr = @{"authorization" = $token}
-    
-    #Set Value
-    If($value)
-    {
-        $property[0].value = $value
-    }
-    Else
-    {
-        Write-Host "Value not specified!"
-    }
-
-    #Update property value
-    $uriput = $url + "/api/globalproperties/" + $property[0].id
-    try
-    {
-        $update = (Invoke-Restmethod -Method PUT -Uri $uriput -Headers $hdr -Body ($property[0] | ConvertTo-Json) -ContentType "application/json")
-    }
-    catch [Exception]
-    {
-        write-host $_
-        write-host $_.Exception.Message
-    }
-
-    return $update
 }
 New-Alias "opc-setproperty" OpCon_SetGlobalProperty
 
 #Get threshold
-function OpCon_GetThreshold($url,$token,$name,$id)
+function OpCon_GetThreshold
 {
-    $hdr = @{"authorization" = $token}
+    Param(
+        [Parameter(Mandatory=$true)] [string]$url
+        ,[Parameter(Mandatory=$true)] [string]$token
+        ,[string]$id
+        ,[string]$name
+    )
 
     #Changes the url based on if id/name provided
     If($id)
@@ -224,115 +263,124 @@ function OpCon_GetThreshold($url,$token,$name,$id)
 
     try
     {
-        $threshold = (Invoke-RestMethod -Method GET -Uri $uriget -Headers $hdr -ContentType "application/json")
+        return Invoke-RestMethod -Method GET -Uri $uriget -Headers @{"authorization" = $token} -ContentType "application/json"
     }
     catch [Exception]
     {
         Write-Host $_
         Write-Host $_.Exception.Message
     }
-
-    return $threshold
 }
 New-Alias "opc-getthreshold" OpCon_GetThreshold
 
 #Create threshold
-function OpCon_CreateThreshold($url,$token,$name,$value,$description)
+function OpCon_CreateThreshold
 {
-    $hdr = @{"authorization" = $token}
+    Param(
+        [Parameter(Mandatory=$true)] [string]$url
+        ,[Parameter(Mandatory=$true)] [string]$token
+        ,[Parameter(Mandatory=$true)] [string]$name
+        ,[Parameter(Mandatory=$true)] [string]$value
+        ,[string] $description
+    )
 
-    $body = New-Object System.Object
-    $body | Add-Member -type NoteProperty -name "name" -value $name
-    $body | Add-Member -type NoteProperty -name "value" -value $value 
-    $body | Add-Member -type NoteProperty -name "description" -value $description
-
-    $uripost = $url + "/api/thresholds"    
+    $body = @{
+        "name" = $name;
+        "value" = $value;
+        "description" = $description
+    }
+ 
     try
     {
-        $threshold = (Invoke-RestMethod -Method POST -Uri $uripost -Body ($body | ConvertTo-Json) -Headers $hdr -ContentType "application/json")
+        return Invoke-RestMethod -Method POST -Uri ($url + "/api/thresholds") -Body ($body | ConvertTo-Json) -Headers @{"authorization" = $token} -ContentType "application/json"
     }
     catch [Exception]
     {
         Write-Host $_
         Write-Host $_.Exception.Message
     }
-
-    return $threshold
 }
 New-Alias "opc-createthreshold" OpCon_CreateThreshold
 
 #Set threshold value
-function OpCon_SetThreshold($url,$token,$id,$name,$value,$description)
+function OpCon_SetThreshold
 {
-    $hdr = @{"authorization" = $token}
+    Param(
+        [Parameter(Mandatory=$true)] [string]$url
+        ,[Parameter(Mandatory=$true)] [string]$token
+        ,[Parameter(Mandatory=$true)] [string]$value
+        ,[string] $id
+        ,[string] $name
+        ,[string] $description
+    )
 
-    If($name)
+    If($name -or $id)
     {
-        $threshold = OpCon_GetThreshold -url $url -token $token -name $name
-    }
-    ElseIf($id)
-    {
-        $threshold = OpCon_GetThreshold -url $url -token $token -id $id
+        if($name)
+        { $threshold = OpCon_GetThreshold -url $url -token $token -name $name }
+        else
+        { $threshold = OpCon_GetThreshold -url $url -token $token -id $id }
+
+        $counter = 0
+        $threshold | ForEach-Object { $counter ++ }
+    
+        if($counter -ne 1)
+        {
+            Write-Output "0 or more than 1 threshold found matching name/id, cannot set value"
+            Exit 1
+        }
+        else 
+        {
+            if($value.StartsWith("+"))
+            {
+                $value = $threshold[0].value + [convert]::ToInt32($value.SubString(1))
+            }
+            elseif($value.StartsWith("-"))
+            {
+                if($threshold[0].value -lt $value.SubString(1))
+                { $value = 0 }
+                else
+                { $value = $threshold[0].value - [convert]::ToInt32($value.SubString(1)) }
+            }
+        
+            if(!$description)
+            { $description = "" }
+        
+            $body = @{
+                "id" = $threshold[0].id;
+                "name" = $name;
+                "value" = $value;
+                "description" = ""
+            }
+        
+            try
+            {
+                return Invoke-RestMethod -Method PUT -Uri ($url + "/api/thresholds/" + $threshold[0].id) -Body ($body | ConvertTo-Json) -Headers @{"authorization" = $token} -ContentType "application/json"
+            }
+            catch [Exception]
+            {
+                Write-Output $_
+                Write-Output $_.Exception.Message
+            }
+        }
     }
     Else
     {
-        Write-Host "No name or id specified!"
+        Write-Output "No name or id specified!"
+        Exit 1
     }
-
-    $counter = 0
-    $threshold | ForEach-Object { $counter ++ }
-
-    if($counter -ne 1)
-    {
-        Write-Host "0 or more than 1 threshold found matching name/id, cannot set value"
-    }
-
-    if($value.StartsWith("+"))
-    {
-        $value = $threshold[0].value + [convert]::ToInt32($value.SubString(1))
-    }
-    elseif($value.StartsWith("-"))
-    {
-      if($threshold[0].value -lt $value.SubString(1))
-      {
-        $value = 0
-      }
-      else
-      {
-        $value = $threshold[0].value - [convert]::ToInt32($value.SubString(1))        
-      }
-    }
-
-    $body = New-Object System.Object
-    $body | Add-Member -type NoteProperty -name "id" -value $threshold[0].id
-    $body | Add-Member -type NoteProperty -name "name" -value $name
-    $body | Add-Member -type NoteProperty -name "value" -value $value
-    
-    if($description)
-    {
-        $body | Add-Member -type NoteProperty -name "description" -value $description
-    }
-
-    $uriput = $url + "/api/thresholds/" + $threshold[0].id
-    
-    try
-    {
-        $result = (Invoke-RestMethod -Method PUT -Uri $uriput -Body ($body | ConvertTo-Json) -Headers $hdr -ContentType "application/json")
-    }
-    catch [Exception]
-    {
-        Write-Host $_
-        Write-Host $_.Exception.Message
-    }
-
-    return $result
 }
 New-Alias "opc-setthreshold" OpCon_SetThreshold
 
 #Get resource
-function OpCon_GetResource($url,$token,$name,$id)
+function OpCon_GetResource
 {
-    $hdr = @{"authorization" = $token}
+    Param(
+        [Parameter(Mandatory=$true)] [string]$url
+        ,[Parameter(Mandatory=$true)] [string]$token
+        ,[string] $name
+        ,[string] $id
+    )
 
     #Changes the url based on if id/name provided
     If($id)
@@ -350,22 +398,26 @@ function OpCon_GetResource($url,$token,$name,$id)
 
     try
     {
-        $resource = (Invoke-RestMethod -Method GET -Uri $uriget -Headers $hdr -ContentType "application/json")
+        return Invoke-RestMethod -Method GET -Uri $uriget -Headers @{"authorization" = $token} -ContentType "application/json"
     }
     catch [Exception]
     {
-        Write-Host $_
-        Write-Host $_.Exception.Message
+        Write-Output $_
+        Write-Output $_.Exception.Message
     }
-
-    return $resource
 }
 New-Alias "opc-getresource" OpCon_GetResource
 
 #Create resource
-function OpCon_CreateResource($url,$token,$name,$value,$description)
+function OpCon_CreateResource
 {
-    $hdr = @{"authorization" = $token}
+    Param(
+        [Parameter(Mandatory=$true)] [string]$url
+        ,[Parameter(Mandatory=$true)] [string]$token
+        ,[Parameter(Mandatory=$true)] [string]$name
+        ,[Parameter(Mandatory=$true)] [string]$value
+        ,[string] $description
+    )
 
     $resource = OpCon_GetResource -url $url -token $token -name $name
     $counter = 0
@@ -373,34 +425,42 @@ function OpCon_CreateResource($url,$token,$name,$value,$description)
 
     if($counter -eq 1)
     {
-        Write-Host "Resource $name already exists"
+        Write-Output "Resource $name already exists"
+        Exit 1
     }
-
-    $body = New-Object System.Object
-    $body | Add-Member -type NoteProperty -name "name" -value $name
-    $body | Add-Member -type NoteProperty -name "value" -value $value 
-    $body | Add-Member -type NoteProperty -name "description" -value $description
-
-    $uripost = $url + "/api/resources"
-    
-    try
+    else 
     {
-        $resource = (Invoke-RestMethod -Method POST -Uri $uripost -Body ($body | ConvertTo-Json) -Headers $hdr -ContentType "application/json")
+        $body = @{
+            "name" = $name;
+            "value" = $value;
+            "description" = $description
+        }
+        
+        try
+        {
+            return Invoke-RestMethod -Method POST -Uri ($url + "/api/resources") -Body ($body | ConvertTo-Json) -Headers @{"authorization" = $token} -ContentType "application/json"
+        }
+        catch [Exception]
+        {
+            Write-Output $_
+            Write-Output $_.Exception.Message
+        }       
     }
-    catch [Exception]
-    {
-        Write-Host $_
-        Write-Host $_.Exception.Message
-    }
-
-    return $resource
 }
 New-Alias "opc-createresouce" OpCon_CreateResource
 
 #Set resource value
-function OpCon_SetResource($url,$token,$id,$name,$value,$description,$used)
+function OpCon_SetResource
 {
-    $hdr = @{"authorization" = $token}
+    Param(
+        [Parameter(Mandatory=$true)] [string]$url
+        ,[Parameter(Mandatory=$true)] [string]$token
+        ,[int]$value
+        ,[string] $id
+        ,[string] $name
+        ,[string] $description
+        ,[string] $used
+    )
 
     $resource = OpCon_GetResource -url $url -token $token -name $name -id $id
 
@@ -409,93 +469,81 @@ function OpCon_SetResource($url,$token,$id,$name,$value,$description,$used)
 
     if($counter -ne 1)
     {
-        Write-Host "More than 1 or no result, cannot set resource"
+        Write-Output "More than 1 or no result, cannot set resource"
+        Exit 1
     }
-
-    if($value)
+    else 
     {
-        if($value.StartsWith("+"))
+        if($value)
         {
-            $value = $resource[0].value + [convert]::ToInt32($value.SubString(1))
-        }
-        elseif($value.StartsWith("-"))
-        {
-          if($resource[0].value -lt $value.SubString(1))
-          {
-            $value = 0
-          }
-          else
-          {
-            $value = $resource[0].value - [convert]::ToInt32($value.SubString(1))        
-          }
-        }
-    }
-    else
-    {
-        $value = $resource[0].value
-    }
-
-    if($used)
-    {
-        if($used.StartsWith("+"))
-        {
-            if(($resource[0].used + [convert]::ToInt32($used.SubString(1))) -gt $value)
+            if($value.StartsWith("+"))
             {
-                $used = $value
+                $value = $resource[0].value + [convert]::ToInt32($value.SubString(1))
             }
-            else
+            elseif($value.StartsWith("-"))
             {
-                $used = $resource[0].used + [convert]::ToInt32($used.SubString(1))
+                if($resource[0].value -lt $value.SubString(1))
+                { $value = 0 }
+                else
+                { $value = $resource[0].value - [convert]::ToInt32($value.SubString(1)) }
             }
         }
-        elseif($used.StartsWith("-"))
+        else
+        { $value = $resource[0].value }
+
+        if($used)
         {
-          if($resource[0].used -lt $used.SubString(1))
-          {
-            $used = 0
-          }
-          else
-          {
-            $value = $resource[0].inuse - [convert]::ToInt32($used.SubString(1))        
-          }
+            if($used.StartsWith("+"))
+            {
+                if(($resource[0].used + [convert]::ToInt32($used.SubString(1))) -gt $value)
+                { $used = $value }
+                else
+                { $used = $resource[0].used + [convert]::ToInt32($used.SubString(1)) }
+            }
+            elseif($used.StartsWith("-"))
+            {
+                if($resource[0].used -lt $used.SubString(1))
+                { $used = 0 }
+                else
+                { $value = $resource[0].inuse - [convert]::ToInt32($used.SubString(1)) }
+            }
+        }
+        else
+        { $used = $resource[0].used }
+
+        If(!$description)
+        { $description = "" }
+
+        $body = @{
+            "id" = $resource[0].id;
+            "name" = $name;
+            "value" = $value;
+            "used" = $used;
+            "description" = $description
+        }
+        
+        try
+        {
+            return Invoke-RestMethod -Method PUT -Uri ($url + "/api/resources/" + $resource[0].id) -Body ($body | ConvertTo-Json) -Headers @{"authorization" = $token} -ContentType "application/json"
+        }
+        catch [Exception]
+        {
+            Write-Output $_
+            Write-Output $_.Exception.Message
         }
     }
-    else
-    {
-        $used = $resource[0].used
-    }
-
-    $uriput = $url + "/api/resources/" + $resource[0].id
-
-    $body = New-Object System.Object
-    $body | Add-Member -type NoteProperty -name "id" -value $resource[0].id
-    $body | Add-Member -type NoteProperty -name "name" -value $name
-    $body | Add-Member -type NoteProperty -name "value" -value $value
-    $body | Add-Member -type NoteProperty -name "used" -value $used
-
-    If($description)
-    {
-        $body | Add-Member -type NoteProperty -name "description" -value $description
-    }
-    
-    try
-    {
-        $result = (Invoke-RestMethod -Method PUT -Uri $uriput -Body ($body | ConvertTo-Json) -Headers $hdr -ContentType "application/json")
-    }
-    catch [Exception]
-    {
-        Write-Host $_
-        Write-Host $_.Exception.Message
-    }
-
-    return $result
 }
 New-Alias "opc-setresource" OpCon_SetResource
 
 #Gets information about an OpCon Agent
-function OpCon_GetAgent($url,$token,$agentname,$id)
+function OpCon_GetAgent
 {
-    $hdr = @{"authorization" = $token}
+    Param(
+        [Parameter(Mandatory=$true)] [string]$url
+        ,[Parameter(Mandatory=$true)] [string]$token
+        ,[string] $id
+        ,[string] $agentname
+    )
 
     #If id is passed use it, otherwise name
     If($id)
@@ -513,48 +561,59 @@ function OpCon_GetAgent($url,$token,$agentname,$id)
 
     try
     {
-        $machine = (Invoke-Restmethod -Method GET -Uri $uriget -Headers $hdr -ContentType "application/json")
+        return Invoke-Restmethod -Method GET -Uri $uriget -Headers @{"authorization" = $token} -ContentType "application/json"
     }
     catch [Exception]
     {
-        Write-Host $_
-        Write-Host $_.Exception.Message
+        Write-Output $_
+        Write-Output $_.Exception.Message
     }
-    
-    return $machine
 }
 New-Alias "opc-getagent" OpCon_GetAgent
 
 #Starts or stops an OpCon agent based on parameters
-function OpCon_ChangeAgentStatus($agentname,$action,$url,$token)
+function OpCon_ChangeAgentStatus
 {
-    $hdr = @{"authorization" = $token}
+    Param(
+        [Parameter(Mandatory=$true)] [string]$url
+        ,[Parameter(Mandatory=$true)] [string]$token
+        ,[Parameter(Mandatory=$true)] [string]$agentname
+        ,[Parameter(Mandatory=$true)] [string]$action
+    )
 
     $machine = OpCon_GetAgent -agentname $agentname -url $url -token $token
     if($machine.Count -eq 0)
     {
-        Write-Host "No agent by that name!"
+        Write-Output "No agent by that name!"
+        Exit 1
     }
     else
-    {
+    { 
         $machine = $machine[0]
-    }
 
-    #Enable/Disable the machine
-    $uripost = $url + "/api/machineactions"
-    $body = '{"machines":[{"id":' + $machine.id + '}],"action":"' + $action + '"}'
+        #Enable/Disable the machine
+        $body = @{
+            "machines"=@(
+                @{
+                    "id"=$machine.id;
+                }
+            );
+            "action"=$action
+        }
 
-    try
-    {
-        $machineaction = (Invoke-Restmethod -Method POST -Uri $uripost -Headers $hdr -Body "$body" -ContentType "application/json")
+        try
+        {
+            $machineaction = Invoke-Restmethod -Method POST -Uri ($url + "/api/machineactions") -Headers @{"authorization" = $token} -Body ($body | ConvertTo-Json -Depth 5) -ContentType "application/json"
+            Write-Output "Agent is $action!"
+            
+            return $machineaction
+        }
+        catch [Exception]
+        {
+            Write-Output $_.Exception
+            write-Output $_.Exception.Message
+        }
     }
-    catch [Exception]
-    {
-        write-host $_.Exception.Message
-    }
-
-    Write-Host "Agent is $action!`r`n"
-    return $machineaction
 }
 New-Alias "opc-changeagentstatus" OpCon_ChangeAgentStatus
 
@@ -562,8 +621,6 @@ New-Alias "opc-changeagentstatus" OpCon_ChangeAgentStatus
 #Creates a new agent in OpCon
 function OpCon_CreateAgent($agentname,$agenttype,$agentdescription,$agentsocket,$agentjors,$token,$url)
 {
-    $hdr = @{"authorization" = $token}
-
     $exists = OpCon_GetAgent -agentname $agentname -url $url -token $token
     if($exists.Count -eq 0)
     {
@@ -591,23 +648,29 @@ function OpCon_CreateAgent($agentname,$agenttype,$agentdescription,$agentsocket,
             default         {"3"}
         }
 
-        $uripost = $url + "/api/machines"
-        $body = '{"name":"' + $agentname + '","type":{"id":' + $agenttypeid + ',"description":"' + $agentdescription + '"},"socket":' + $agentsocket + ',"jorsPortNumber":' + $agentjors + '}'
+        $body = @{
+            "name"=$agentname;
+            "type"=@{
+                "id"=$agenttypeid;
+                "description"=$agentdescription
+            };
+            "socket"=$agentsocket;
+            "jorsPortNumber"=$agentjors
+        }
 
         try
         {
-            $machine = (Invoke-RestMethod -Method POST -Uri $uripost -Headers $hdr -Body "$body" -ContentType "application/json")   
+            $machine = Invoke-RestMethod -Method POST -Uri ($url + "/api/machines") -Headers @{"authorization" = $token} -Body ($body | ConvertTo-Json -Depth 5) -ContentType "application/json"
             Write-Host "Machine added!`r`n"
         }
         catch [Exception]
         {
+            Write-Host $_.Exception
             write-host $_.Exception.Message
         }
     }
     else
-    {
-        Write-Host "Agent with the same name already exists!`r`n"
-    }
+    { Write-Host "Agent with the same name already exists!`r`n" }
 
     return $machine
 }
@@ -616,62 +679,53 @@ New-Alias "opc-createagent" OpCon_CreateAgent
 #Updates a particular field on an existing agent
 function OpCon_UpdateAgent($agentname,$token,$url,$field,$value)
 {
-    $hdr = @{"authorization" = $token}
-    
     $agent = OpCon_GetAgent -agentname $agentname -url $url -token $token
     If($agent.PSobject.Properties.name -match $field)
-    {
-        $agent.$field = $value
+    { 
+        $agent.$field = $value 
+
+        #Take the machine down
+        $down = OpCon_ChangeAgentStatus -agentname $agentname -action "down" -url $url -token $token
+
+        try
+        {
+            $update = Invoke-Restmethod -Method PUT -Uri ($url + "/api/machines/" + $agent.id) -Headers @{"authorization" = $token} -Body ($agent | ConvertTo-Json -Depth 4) -ContentType "application/json"
+        }
+        catch [Exception]
+        {
+            Write-Host $_.Exception
+            write-host $_.Exception.Message
+        }
+        Write-Host $agentname "updated!`r`n"
+
+        Sleep 3
+
+        #Bring the updated machine back up
+        $up = OpCon_ChangeAgentStatus -agentname $agentname -action "up" -url $url -token $token
+        return $up[0]
     }
     else
-    {
-        Write-Host "invalid Machine property specified!"
-    }
-
-    #Take the machine down
-    $down = OpCon_ChangeAgentStatus -agentname $agentname -action "down" -url $url -token $token
-
-    $body = $agent | ConvertTo-Json -Depth 4
-    $uriput = $url + "/api/machines/" + $agent.id
-
-    try
-    {
-        $update = (Invoke-Restmethod -Method PUT -Uri $uriput -Headers $hdr -Body "$body" -ContentType "application/json")
-    }
-    catch [Exception]
-    {
-        write-host $_.Exception.Message
-    }
-    Write-Host $agentname "updated!`r`n"
-
-    Sleep 3
-
-    #Bring the updated machine back up
-    $up = OpCon_ChangeAgentStatus -agentname $agentname -action "up" -url $url -token $token
-    return $up[0]
+    { Write-Host "invalid Machine property specified!" }
 }
 New-Alias "opc-updateagent" OpCon_UpdateAgent
 
 #Get schedule information
 function OpCon_GetSchedule($url,$token,$sname,$date)
 {
-    $hdr = @{"authorization" = $token}
-
     if(!$date)
     {
         if(!$sname)
         {
-            $uriget = $url + "/api/dailyschedules/dates"
+            $uriget = $url + "/api/dailyschedules?dates"
         }
         Else
         {
-            $uriget = $url + "/api/dailyschedules/?name=" + "$sname"
+            $uriget = $url + "/api/dailyschedules?name=" + "$sname"
         }
-
 
         try
         {
-            $getdates = (Invoke-RestMethod -Method GET -Uri $uriget -Headers $hdr -ContentType "application/json")
+            $getdates = Invoke-RestMethod -Method GET -Uri $uriget -Headers @{"authorization" = $token} -ContentType "application/json"
         }
         catch [Exception]
         {
@@ -694,7 +748,7 @@ function OpCon_GetSchedule($url,$token,$sname,$date)
 
         try
         {
-            $getschedule = (Invoke-RestMethod -Method GET -Uri $uriget -Headers $hdr -ContentType "application/json")
+            $getschedule = (Invoke-RestMethod -Method GET -Uri $uriget -Headers @{"authorization" = $token} -ContentType "application/json")
         }
         catch [Exception]
         {
@@ -717,8 +771,6 @@ New-Alias "opc-getschedule" OpCon_GetSchedule
 
 function OpCon_ScheduleAction($url,$token,$sname,$jname,$frequency,$reason,$action,$states,$date,$sid,$instanceProperties,[switch]$applyExceptions,[switch]$rebuildOnRestart)
 {
-    $hdr = @{"authorization" = $token}
-
     $action = switch ($action) 
     { 
         "JOB:ADD"             {"addjobs"}
@@ -881,10 +933,9 @@ function OpCon_ScheduleAction($url,$token,$sname,$jname,$frequency,$reason,$acti
     else 
     { $body = [PSCustomObject]@{"scheduleActionItems" = $scheduleObjects;"action" = $action;"reason" = $reason } }
 
-    $uripost = $url + "/api/ScheduleActions"
     try
     {
-        $submit = Invoke-RestMethod -Method POST -Uri $uripost -Body ($body | ConvertTo-Json -Depth 10) -Headers $hdr -ContentType "application/json"
+        $submit = Invoke-RestMethod -Method POST -Uri ($url + "/api/ScheduleActions") -Body ($body | ConvertTo-Json -Depth 10) -Headers @{"authorization" = $token} -ContentType "application/json"
     }
     catch [Exception]
     {
@@ -941,8 +992,6 @@ New-Alias "opc-getdailyjob" OpCon_GetDailyJob
 #Sends a job action to a job
 function OpCon_JobAction($url,$token,$sname,$jname,$date,$action,$reason)
 {
-    $hdr = @{"authorization" = $token}
-
     if($action)
     {
         if($action.IndexOf(":") -ge 0)
@@ -964,87 +1013,81 @@ function OpCon_JobAction($url,$token,$sname,$jname,$date,$action,$reason)
                     "JOB:UNDERREVIEW"     {"markjobsunderreview"}        
                 }
         }
-    }
-    Else
-    {
-        Write-Host "No action specified!"
-    }
 
-    if($jname -and $sname)
-    {
-        if(!$date)
+        if($jname -and $sname)
         {
-            $date = Get-Date -Format "yyyy/MM/dd"
-        }
-        $job = OpCon_GetDailyJob -url $url -token $token -sname "$sname" -jname "$jname" -date $date
-
-        $counter = 0    
-        $job | ForEach-Object{ $counter++ }
-        If($counter -ne 1)
-        {
-            Write-Host "Too many results for job!`r`n"
-        }
-
-        $jobsArray = @()
-        $jobsArray += @{ id=$job[0].id; }
-    }
-    Else
-    {
-        Write-Host "Missing schedule or job name!"
-    }
-
-    $body = New-Object System.Object
-    $body | Add-Member -type NoteProperty -name "action" -value $action
-    $body | Add-Member -type NoteProperty -name "jobs" -value $jobsArray
-    $body | Add-Member -type NoteProperty -name "reason" -value $reason
-
-    $uripost = $url + "/api/jobactions"
-    try
-    {
-        $jobaction = (Invoke-RestMethod -Method POST -Uri $uripost -Body ($body | ConvertTo-JSON) -Headers $hdr -ContentType "application/json")
-    }
-    catch [Exception]
-    {
-        Write-Host $_
-        Write-Host $_.Exception.Message
-    }
-
-    if($jobaction.result -eq "success")
-    {
-        return $jobaction
-    }
-    elseif($jobaction.result -eq "error")
-    {
-        Write-Host "Job action attempt had an error"
-    }
-    else
-    {
-        for($x = 0;$x -lt 20;$x++)
-        {
-            $jobaction
-            $result = OpCon_GetJobAction -url $url -token $token -id $jobaction.id
+            if(!$date)
+            {
+                $date = Get-Date -Format "yyyy/MM/dd"
+            }
+            $job = OpCon_GetDailyJob -url $url -token $token -sname "$sname" -jname "$jname" -date $date
+    
+            $counter = 0    
+            $job | ForEach-Object{ $counter++ }
+            If($counter -ne 1)
+            {
+                Write-Host "Too many results for job!`r`n"
+            }
+    
+            $jobsArray = @()
+            $jobsArray += @{ id=$job[0].id; }
+    
+            $body = @{
+                "action"=$action;
+                "jobs"=$jobsArray;
+                "reason"=$reason
+            }
         
-            if($result.result -eq "success")
-            { $x = 20 }
-            elseif($result.result -eq "error")
+            try
+            {
+                $jobaction = (Invoke-RestMethod -Method POST -Uri ($url + "/api/jobactions") -Body ($body | ConvertTo-JSON) -Headers @{"authorization" = $token} -ContentType "application/json")
+            }
+            catch [Exception]
+            {
+                Write-Host $_
+                Write-Host $_.Exception.Message
+            }
+        
+            if($jobaction.result -eq "success")
+            {
+                return $jobaction
+            }
+            elseif($jobaction.result -eq "error")
             {
                 Write-Host "Job action attempt had an error"
-                $result
             }
-
-            if($x -ne 20)
-            { Start-Sleep -s 3 }
+            else
+            {
+                for($x = 0;$x -lt 20;$x++)
+                {
+                    $jobaction
+                    $result = OpCon_GetJobAction -url $url -token $token -id $jobaction.id
+                
+                    if($result.result -eq "success")
+                    { $x = 20 }
+                    elseif($result.result -eq "error")
+                    {
+                        Write-Host "Job action attempt had an error"
+                        $result
+                    }
+        
+                    if($x -ne 20)
+                    { Start-Sleep -s 3 }
+                }
+                return $result
+            }
         }
-        return $result
+        Else
+        { Write-Host "Missing schedule or job name!" }
     }
+    Else
+    { Write-Host "No action specified!" }
 }
 New-Alias "opc-jobaction" OpCon_JobAction
 
 #Get calendar
 function OpCon_GetCalendar($url,$token,$name,$id)
 {
-    $hdr = @{"authorization" = $token}
-
     if($name -or $id)
     {
         if($name)
@@ -1056,7 +1099,7 @@ function OpCon_GetCalendar($url,$token,$name,$id)
         try
         {
             $counter = 0
-            $calendar = (Invoke-RestMethod -Method GET -Uri $uriget -Headers $hdr -ContentType "application/json")
+            $calendar = (Invoke-RestMethod -Method GET -Uri $uriget -Headers @{"authorization" = $token} -ContentType "application/json")
             $calendar | ForEach-Object{ $counter++ } 
             
             if($counter -eq 0)
@@ -1073,9 +1116,7 @@ function OpCon_GetCalendar($url,$token,$name,$id)
         return $calendar
     }
     else
-    {
-        Write-Host "No name or id specified!"
-    }
+    { Write-Host "No name or id specified!" }
 }
 New-Alias "opc-getcalendar" OpCon_GetCalendar
 
@@ -1216,16 +1257,13 @@ New-Alias "opc-createcalendar" OpCon_CreateCalendar
 #Checks the status of the SAM service
 function OpCon_SAMStatus($url,$token)
 {
-    $hdr = @{"authorization" = $token}
-
-    $uriget = $url + "/api/ServiceStatus"
-
     try
     {
-        $status = Invoke-Restmethod -Method GET -Uri $uriget -Headers $hdr -ContentType "application/json"
+        $status = Invoke-Restmethod -Method GET -Uri ($url + "/api/ServiceStatus") -Headers @{"authorization" = $token} -ContentType "application/json"
     }
     catch [Exception]
     {
+        Write-Host $_.Exception
         write-host $_.Exception.Message
     }
     
@@ -1236,14 +1274,13 @@ New-Alias "opc-sam" OpCon_SAMStatus
 #Checks the OpCon API Version
 function OpCon_APIVersion($url)
 {
-    $uriget = $url + "/api/version"
-
     try
     {
-        $version = Invoke-Restmethod -Method GET -Uri $uriget -ContentType "application/json"
+        $version = Invoke-Restmethod -Method GET -Uri ($url + "/api/version") -ContentType "application/json"
     }
     catch [Exception]
     {
+        Write-Host $_.Exception
         write-host $_.Exception.Message
     }
     
@@ -1254,53 +1291,45 @@ New-Alias "opc-apiversion" OpCon_APIVersion
 #Function to remove an item from a Service Request choice dropdown
 function OpCon_DeleteSSChoice($getdropdown,$url,$token,$buttonname,$removeitem,$id)
 {
-    $hdr = @{"authorization" = $token}
-
     if($id)
     { $get =  OpCon_GetSSButton -url $url -token $token -id $id }
     else 
     { $get = OpCon_GetSSButton -button $buttonname -url $url -token $token }
     if(@($get).Count -eq 1)
-    {
+    { 
         $get = $get[0]
+
+        #Get XML information for adding/deleting
+        $details = [xml] $get.details
+
+        $delete = ($details.request.variables.variable.choice.items.ChildNodes | Where-Object { $_.caption -like $removeitem }) | ForEach-Object { $_.ParentNode.RemoveChild($_) }
+
+        #Shows list of entries
+        $details.request.variables.variable.choice.items.ChildNodes
+
+        #Set XML back
+        $get.details = $details.InnerXml
+
+        try
+        {
+            $update = Invoke-RestMethod -Method PUT -Uri ($url + "/api/ServiceRequests/" + $get.id) -Headers @{"authorization" = $token} -Body ($get | ConvertTo-Json -Depth 3) -ContentType "application/json"
+        }
+        catch [Exception]
+        {
+            Write-Host $_.Exception
+            Write-Host $_.Exception.Message
+        }
+
+        return $update    
     }
     else
-    {
-        Write-Host "No button named $button!"
-    }
-
-    #Get XML information for adding/deleting
-    $details = [xml] $get.details
-
-    $delete = ($details.request.variables.variable.choice.items.ChildNodes | Where-Object { $_.caption -like $removeitem }) | ForEach-Object { $_.ParentNode.RemoveChild($_) }
-
-    #Shows list of entries
-    $details.request.variables.variable.choice.items.ChildNodes
-
-    #Set XML back
-    $get.details = $details.InnerXml
-    $body = $get | ConvertTo-Json -Depth 3
-
-    $uriput = $url + "/api/ServiceRequests/" + $get.id
-
-    try
-    {
-        $update = (Invoke-RestMethod -Method PUT -Uri $uriput -Headers $hdr -Body $body -ContentType "application/json")
-    }
-    catch [Exception]
-    {
-        Write-Host $_.Exception.Message
-    }
-
-    return $update
+    { Write-Host "No button named $button!" }
 }
 New-Alias "opc-deletesschoice" OpCon_DeleteSSChoice
 
 #Function to add entries to a Service Request choice selection
 function OpCon_AddSSChoice($addname,$addvalue,$getdropdown,$url,$token,$buttonname,$id)
 {
-    $hdr = @{"authorization" = $token}
-
     if($id)
     { $get =  OpCon_GetSSButton -url $url -token $token -id $id }
     else 
@@ -1309,102 +1338,91 @@ function OpCon_AddSSChoice($addname,$addvalue,$getdropdown,$url,$token,$buttonna
     if(@($get).Count -eq 1)
     {
         $get = $get[0]
+
+        #Get XML information for adding/deleting
+        $details = [xml] $get.details
+
+        if(!($details.request.variables.variable.choice.items.ChildNodes | Where-Object{$_.caption -eq $addname}))
+        {
+            $xmlFrag = $details.CreateDocumentFragment()
+            $xmlFrag.InnerXml="<item><caption>$addname</caption><value>$addvalue</value></item>"
+            $add = ($details.request.variables.variable | Where-Object{$_.name -eq $getdropdown}) | ForEach-Object{$_.choice.items.AppendChild($xmlFrag)}     
+            $sorted = ($details.request.variables.variable | Where-Object{$_.name -eq $getdropdown}).choice.items.item | Sort caption
+
+            For($x = 0;$x -lt $sorted.length;$x++)
+            {
+                $delete = ($details.request.variables.variable.choice.items.ChildNodes | Where-Object { $_.caption -like $sorted[$x].caption }) | ForEach-Object { $_.ParentNode.RemoveChild($_) }
+                $xmlFrag.InnerXml = "<item><caption>" + $sorted[$x].caption + "</caption><value>" + $sorted[$x].value + "</value></item>"
+                $add = ($details.request.variables.variable | Where-Object{$_.name -eq $getdropdown}) | ForEach-Object{$_.choice.items.AppendChild($xmlFrag)} 
+            }
+
+            #Adds modified items back to original object
+            $get.details = $details.InnerXml
+            
+            try
+            {
+                $update = Invoke-RestMethod -Method PUT -Uri ($url + "/api/ServiceRequests/" + $get.id) -Headers @{"authorization" = $token} -Body ($get | ConvertTo-Json -Depth 3) -ContentType "application/json"
+            }
+            catch [Exception]
+            {
+                Write-Host $_.Exception
+                Write-Host $_.Exception.Message
+            }
+
+            return $update
+        }
+        else
+        {
+            Write-Host "Entry already exists!"
+        }
     }
     else
-    {
-        Write-Host "No button named $button!"
-    }
-
-    #Get XML information for adding/deleting
-    $details = [xml] $get.details
-
-    if(!($details.request.variables.variable.choice.items.ChildNodes | Where-Object{$_.caption -eq $addname}))
-    {
-        $xmlFrag = $details.CreateDocumentFragment()
-        $xmlFrag.InnerXml="<item><caption>$addname</caption><value>$addvalue</value></item>"
-        $add = ($details.request.variables.variable | Where-Object{$_.name -eq $getdropdown}) | ForEach-Object{$_.choice.items.AppendChild($xmlFrag)}     
-        $sorted = ($details.request.variables.variable | Where-Object{$_.name -eq $getdropdown}).choice.items.item | Sort caption
-
-        For($x = 0;$x -lt $sorted.length;$x++)
-        {
-            $delete = ($details.request.variables.variable.choice.items.ChildNodes | Where-Object { $_.caption -like $sorted[$x].caption }) | ForEach-Object { $_.ParentNode.RemoveChild($_) }
-            $xmlFrag.InnerXml = "<item><caption>" + $sorted[$x].caption + "</caption><value>" + $sorted[$x].value + "</value></item>"
-            $add = ($details.request.variables.variable | Where-Object{$_.name -eq $getdropdown}) | ForEach-Object{$_.choice.items.AppendChild($xmlFrag)} 
-        }
-
-        #Adds modified items back to original object
-        $get.details = $details.InnerXml
-    
-        $uriput = $url + "/api/ServiceRequests/" + $get.id
-        $body = $get | ConvertTo-Json -Depth 3
-        
-        try
-        {
-            $update = (Invoke-RestMethod -Method PUT -Uri $uriput -Headers $hdr -Body $body -ContentType "application/json")
-        }
-        catch [Exception]
-        {
-            Write-Host $_.Exception.Message
-        }
-
-        return $update
-    }
-    else
-    {
-        Write-Host "Entry already exists!"
-    }
+    { Write-Host "No button named $button!" }
 }
 New-Alias "opc-addsschoice" OpCon_AddSSChoice
 
 #Gets information about a Self Service button
 function OpCon_GetSSButton($url,$token,$id,$button)
 {
-    $hdr = @{"authorization" = $token}
+    if($id -or $button)
+    {
+        if($id)
+        { $uriget = $url + "/api/ServiceRequests/" + $id }
+        else 
+        { $uriget = $url + "/api/ServiceRequests?name=" + $button }
 
-    if($id)
-    {
-        $uriget = $url + "/api/ServiceRequests/" + $id
-    }
-    elseif($button)
-    {
-        $uriget = $url + "/api/ServiceRequests?name=" + $button
+        try
+        {
+            $getbutton = Invoke-RestMethod -Method GET -Uri $uriget -Headers @{"authorization" = $token} -ContentType "application/json"
+            
+            if($button)
+            {
+                $getbutton = Invoke-RestMethod -Method GET -Uri ($url + "/api/ServiceRequests/" + $getbutton.id) -Headers @{"authorization" = $token} -ContentType "application/json"
+            }
+        }
+        catch [Exception]
+        {
+            Write-Host $_.Exception
+            Write-Host $_.Exception.Message
+        }
+    
+        return $getbutton
     }
     else
-    {
-        Write-Host "No button name or id specified!"
-    }
-
-    try
-    {
-        $getbutton = Invoke-RestMethod -Method GET -Uri $uriget -Headers $hdr -ContentType "application/json"
-        
-        if($button)
-        {
-            $getbutton = Invoke-RestMethod -Method GET -Uri ($url + "/api/ServiceRequests/" + $getbutton.id) -Headers $hdr -ContentType "application/json"
-        }
-    }
-    catch [Exception]
-    {
-        Write-Host $_.Exception.Message
-    }
-
-    return $getbutton
+    { Write-Host "No button name or id specified!" }
 }
 #New-Alias "opgssb" OpCon_GetSSButton
 
 #Gets a user from the OpCon database
 function OpCon_GetUser($username,$url,$token)
 {
-    $hdr = @{"authorization" = $token}
-
-    $uriget = $url + "/api/users?loginName=" + $username + "&includeDetails=true"
-
     try
     {
-        $user = (Invoke-RestMethod -Method GET -Uri $uriget -Headers $hdr -ContentType "application/json")
+        $user = Invoke-RestMethod -Method GET -Uri ($url + "/api/users?loginName=" + $username + "&includeDetails=true") -Headers @{"authorization" = $token} -ContentType "application/json"
     }
     catch [Exception]
     {
+        Write-Host $_.Exception
 		Write-Host $_.Exception.Message
     }
 
@@ -1506,38 +1524,57 @@ New-Alias "opc-createuser" OpCon_CreateUser
 #Sets up a job to disable a created user
 function OpCon_DisableDemoUser($url,$token,$username,$userid)
 {   
-    $hdr = @{"authorization" = $token}
-
     #Get "ADHOC" schedule information
     $scheduleinfo = OpCon_GetSchedule -url $url -token $token -sname "ADHOC" -date (Get-Date -Format "MM/dd/yyyy")
 
     #Make sure only 1 Adhoc schedule was returned
     If(@($scheduleinfo).Count -ne 1)
+    { Write-Host "Too many results for schedule" }
+    else 
     {
-        Write-Host "Too many results for schedule"
-    }
+        #Submit JobAdd to disable user in the future
+        $body = @{
+            "scheduleActionItems"=@(
+                @{
+                    "id"=$scheduleinfo[0].id;
+                    "jobs"=@(
+                        @{
+                            "id"="DISABLE OPCON USER";
+                            "frequency"="OnRequest";
+                            "instanceProperties"=@(
+                                @{
+                                    "name"="USERNAME";
+                                    "value"=$username
+                                };
+                                @{
+                                    "name"="id";
+                                    "value"=$userid
+                                }
+                            )
+                        }
+                    )
+                }
+            );
+            "action"="addjobs"
+        }
 
-    #Submit JobAdd to disable user in the future
-    $uripost = $url + "/api/ScheduleActions"
-    $body = '{"scheduleActionItems":[{"id":"' + $scheduleinfo[0].id + '","jobs":[{"id":"DISABLE OPCON USER","frequency":"OnRequest","instanceProperties":[{"name":"USERNAME","value":"' + $username + '"},{"name":"id","value":"' + $userid + '"}]}]}],"action":"addjobs"}'
+        try
+        {
+            $addjob = Invoke-RestMethod -Method POST -Uri ($url + "/api/ScheduleActions") -Body ($body | ConvertTo-Json -Depth 7) -Headers @{"authorization" = $token} -ContentType "application/json"
+        }
+        catch [Exception]
+        {
+            Write-Host $_.Exception
+            Write-Host $_.Exception.Message
+        }
 
-    try
-    {
-        $addjob = (Invoke-RestMethod -Method POST -Uri $uripost -Body $body -Headers $hdr -ContentType "application/json")
+        return $addjob
     }
-    catch [Exception]
-    {
-        Write-Host $_.Exception.Message
-    }
-
-    return $addjob
 }
 
 #Updates a field in an OpCon user
 function OpCon_UpdateUser($url,$token,$username,$field,$value)
 {
-    $hdr = @{"authorization" = $token}
-
     if($username)
     {
         $getuser = OpCon_GetUser -username $username -url $url -token $token
@@ -1545,49 +1582,39 @@ function OpCon_UpdateUser($url,$token,$username,$field,$value)
         { 
             Write-Host "User $username does not exist"
         }
-
-        $user = $getuser[0]
-
-        $uriput = $url + "/api/users/" + $user.id
-        $user.$field = $value
-        $body = $user | ConvertTo-Json
-
-        try
+        else 
         {
-            $updateduser = (Invoke-RestMethod -Method PUT -Uri $uriput -Headers $hdr -Body $body -ContentType "application/json")
-        }
-        catch [Exception]
-        {
-            Write-Host $_.Exception.Message
-        }
+            $user = $getuser[0]
+            $user.$field = $value
 
-        return $updateduser
+            try
+            {
+                $updateduser = Invoke-RestMethod -Method PUT -Uri ($url + "/api/users/" + $user.id) -Headers @{"authorization" = $token} -Body ($user | ConvertTo-Json) -ContentType "application/json"
+            }
+            catch [Exception]
+            {
+                Write-Host $_.Exception
+                Write-Host $_.Exception.Message
+            }
+
+            return $updateduser
+        }
     }
     else
-    {
-        Write-Host "No username provided!"
-    }
+    { Write-Host "No username provided!" }
 }
 New-Alias "opc-updateuser" OpCon_UpdateUser
 
 #Get schedule information
-function OpCon_GetDailyJobsCountByStatus($url,$token,$date,$status)
+function OpCon_GetDailyJobsCountByStatus($url,$token,$date = (Get-Date -format "yyyy-MM-dd"),$status)
 {
-    $hdr = @{"authorization" = $token}
-
-    if(!$date)
-    {
-        $date = Get-Date -format "yyyy-MM-dd"
-    }
-
-    $uriget = $url + "/api/dailyjobs/count_by_status" #?terminationDescription=" + $status
-
     try
     {
-        $count = (Invoke-RestMethod -Method GET -Uri $uriget -Headers $hdr -ContentType "application/json")
+        $count = Invoke-RestMethod -Method GET -Uri ($url + "/api/dailyjobs/count_by_status") -Headers @{"authorization" = $token} -ContentType "application/json"
     }
     catch [Exception]
     {
+        Write-Host $_.Exception
         Write-Host $_.Exception.Message
     }
 
@@ -1596,23 +1623,15 @@ function OpCon_GetDailyJobsCountByStatus($url,$token,$date,$status)
 New-Alias "opc-dailyjobscountbystatus" OpCon_GetDailyJobsCountByStatus
 
 #Gets daily jobs by status and date (default todays date)
-function OpCon_GetDailyJobsByStatus($url,$token,$date,$status)
+function OpCon_GetDailyJobsByStatus($url,$token,$date = (Get-Date -format "yyyy-MM-dd"),$status)
 {
-    $hdr = @{"authorization" = $token}
-
-    if(!$date)
-    {
-        $date = Get-Date -format "yyyy-MM-dd"
-    }
-
-    $uriget = $url + "/api/dailyjobs?status=" + $status + "&dates=" + $date
-
     try
     {
-        $count = (Invoke-RestMethod -Method GET -Uri $uriget -Headers $hdr -ContentType "application/json")
+        $count = Invoke-RestMethod -Method GET -Uri ($url + "/api/dailyjobs?status=" + $status + "&dates=" + $date) -Headers @{"authorization" = $token} -ContentType "application/json"
     }
     catch [Exception]
     {
+        Write-Host $_.Exception
         Write-Host $_.Exception.Message
     }
 
@@ -1620,118 +1639,138 @@ function OpCon_GetDailyJobsByStatus($url,$token,$date,$status)
 }
 New-Alias "opc-dailyjobsbystatus" OpCon_GetDailyJobsByStatus
 
-function OpCon_GetDailyJobsBySchedule($url,$token,$date,$schedule)
+function OpCon_GetDailyJobsBySchedule
 {
-    $hdr = @{"authorization" = $token}
-
-    if(!$date)
-    {
-        $date = Get-Date -format "yyyy-MM-dd"
-    }
-
-    $uriget = $url + "/api/dailyjobs?scheduleName=" + $schedule
+    Param(
+        [Parameter(Mandatory=$true)] [string]$url
+        ,[Parameter(Mandatory=$true)] [string]$token
+        ,[Parameter(Mandatory=$true)] [string]$schedule
+        ,[string] $date = (Get-Date -format "yyyy-MM-dd")
+    )
 
     try
     {
-        $count = (Invoke-RestMethod -Method GET -Uri $uriget -Headers $hdr -ContentType "application/json")
+        return Invoke-RestMethod -Method GET -Uri ($url + "/api/dailyjobs?scheduleName=" + $schedule) -Headers @{"authorization" = $token} -ContentType "application/json"
     }
     catch [Exception]
     {
-        Write-Host $_.Exception.Message
+        Write-Output $_.Exception
+        Write-output $_.Exception.Message
     }
-
-    return $count
 }
 New-Alias "opc-dailyjobsbyschedule" OpCon_GetDailyJobsBySchedule
 
 #Gets a specific daily job based on the jobs id
-function OpCon_GetSpecificDailyJob($url,$token,$jid)
+function OpCon_GetSpecificDailyJob
 {
-    $hdr = @{"authorization" = $token}
-
-    $uriget = $url + "/api/dailyjobs/" + $jid
+    Param(
+        [Parameter(Mandatory=$true)] [string]$url
+        ,[Parameter(Mandatory=$true)] [string]$token
+        ,[Parameter(Mandatory=$true)] [string]$jid
+    )
 
     try
     {
-        $jobs = (Invoke-RestMethod -Method GET -Uri $uriget -Headers $hdr -ContentType "application/json")
+        return Invoke-RestMethod -Method GET -Uri ($url + "/api/dailyjobs/" + $jid) -Headers @{"authorization" = $token} -ContentType "application/json"
     }
     catch [Exception]
     {
-        Write-Host $_.Exception.Message
+        Write-Output $_.Exception
+        Write-Output $_.Exception.Message
     }
-
-    return $jobs
 }
 New-Alias "opc-dailyjob" OpCon_GetSpecificDailyJob
 
 #Attempts to get an output file from a job run
-function OpCon_SubmitJobInstanceFileAction($url,$token,$sname,$jname,$date,$jobnumber,$path)
+function OpCon_SubmitJobInstanceFileAction
 {
-    $hdr = @{"authorization" = $token}
+    Param(
+        [Parameter(Mandatory=$true)] [string]$url
+        ,[Parameter(Mandatory=$true)] [string]$token
+        ,[Parameter(Mandatory=$true)] [string]$sname
+        ,[Parameter(Mandatory=$true)] [string]$jname
+        ,[Parameter(Mandatory=$true)] [string]$path
+        ,[Parameter(Mandatory=$true)] [string]$date
+        ,[string] $jobnumber
+    )
 
     if(!$jobnumber)
     {
         $jobnumber = (OpCon_GetDailyJob -url $url -token $token -sname $sname -jname $jname -date $date).jobNumber
     }
 
-    $uripost = $url + "/api/jobinstanceactions"
-    $body = '{"action":"FILE","jobInstanceActionItems":[{"id":' + $jobnumber + ',"jorsRequestParameters":' + $path + '}]}'
+    $body = @{
+        "action"="FILE";
+        "jobInstanceActionItems"=@( 
+            @{ 
+                "id"=$jobnumber;
+                "jorsRequestParameters"=$path
+            } 
+        )
+    }
 
     try
     {
-        $file = (Invoke-RestMethod -Method POST -Uri $uripost -Headers $hdr -Body $body -ContentType "application/json")
+        return Invoke-RestMethod -Method POST -Uri ($url + "/api/jobinstanceactions") -Headers @{"authorization" = $token} -Body ($body | ConvertTo-Json -Depth 5 ) -ContentType "application/json"
     }
     catch [Exception]
     {
-        Write-Host $_
-        Write-Host $_.Exception.Message
+        Write-Output $_
+        Write-Output $_.Exception.Message
     }
-
-    return $file
 }
 New-Alias "opc-jobinstancefileaction" OpCon_SubmitJobInstanceFileAction
 
 #Attempts to get a list of output files from a job run
-function OpCon_SubmitJobInstanceListAction($url,$token,$sname,$jname,$date)
+function OpCon_SubmitJobInstanceListAction
 {
-    $hdr = @{"authorization" = $token}
+    Param(
+        [Parameter(Mandatory=$true)] [string]$url
+        ,[Parameter(Mandatory=$true)] [string]$token
+        ,[Parameter(Mandatory=$true)] [string]$sname
+        ,[Parameter(Mandatory=$true)] [string]$jname
+        ,[Parameter(Mandatory=$true)] [string]$date
+    )
 
     $jobnumber = (OpCon_GetDailyJob -url $url -token $token -sname $sname -jname $jname -date $date).jobNumber
 
-    $uripost = $url + "/api/jobinstanceactions"
-    $body = '{"action":"LIST","jobInstanceActionItems":[{"id":' + $jobnumber + '}]}'
+    $body = @{
+        "action"="LIST";
+        "jobInstanceActionItems"=@( 
+            @{ "id"=$jobnumber } 
+        )
+    }
 
     try
     {
-        $list = (Invoke-RestMethod -Method POST -Uri $uripost -Headers $hdr -Body $body -ContentType "application/json")
+        return Invoke-RestMethod -Method POST -Uri ($url + "/api/jobinstanceactions") -Headers @{"authorization" = $token} -Body ($body | ConvertTo-Json -Depth 5) -ContentType "application/json"
     }
     catch [Exception]
     {
-        Write-Host $_
-        Write-Host $_.Exception.Message
+        Write-Output $_
+        Write-Output $_.Exception.Message
     }
-
-    return $list
 }
 New-Alias "opc-jobinstancelistaction" OpCon_SubmitJobInstanceListAction
 
 #Gets information about a previously submitted job action
-function OpCon_GetJobInstanceAction($url,$token,$id)
+function OpCon_GetJobInstanceAction
 {
-    $hdr = @{"authorization" = $token}
-
-    $uriget = $url + "/api/jobinstanceactions/" + $id
+    Param(
+        [Parameter(Mandatory=$true)] [string]$url
+        ,[Parameter(Mandatory=$true)] [string]$token
+        ,[Parameter(Mandatory=$true)] [string]$id
+    )
 
     try
     {
-        $status = (Invoke-RestMethod -Method GET -Uri $uriget -Headers $hdr -ContentType "application/json")
+        return Invoke-RestMethod -Method GET -Uri ($url + "/api/jobinstanceactions/" + $id) -Headers @{"authorization" = $token} -ContentType "application/json"
     }
     catch [Exception]
     {
-        Write-Host $_.Exception.Message
+        Write-Output $_.Exception
+        Write-Output $_.Exception.Message
     }
-
-    return $status
 }
 New-Alias "opc-jobinstanceaction" OpCon_GetJobInstanceAction
 
@@ -1747,159 +1786,153 @@ function OpCon_GetJobOutput($url,$token,$sname,$jname,$date)
     if($liststatus.result -eq "success")
     {
         $path = $liststatus.jobInstanceActionItems.files | ConvertTo-Json
+
+        $output = OpCon_SubmitJobInstanceFileAction -url $url -token $token -jobnumber $liststatus.jobInstanceActionItems.id -path $path
+        $outputstatus = OpCon_GetJobInstanceAction -url $url -token $token -id $output.id
+        while((($outputstatus.result -ne "success") -and ($outputstatus.result -ne "failed")))
+        {
+            $outputstatus = OpCon_GetJobInstanceAction -url $url -token $token -id $output.id
+        }
+    
+        if($outputstatus.result -eq "failed")
+        {
+            Write-Host "Problem loading data from jors file"
+        }
+    
+        return $outputstatus
     }
     else
     {
         Write-Host "Problem getting job output file list"
     }
-
-    $output = OpCon_SubmitJobInstanceFileAction -url $url -token $token -jobnumber $liststatus.jobInstanceActionItems.id -path $path
-    $outputstatus = OpCon_GetJobInstanceAction -url $url -token $token -id $output.id
-    while((($outputstatus.result -ne "success") -and ($outputstatus.result -ne "failed")))
-    {
-        $outputstatus = OpCon_GetJobInstanceAction -url $url -token $token -id $output.id
-    }
-
-    if($outputstatus.result -eq "failed")
-    {
-        Write-Host "Problem loading data from jors file"
-    }
-
-    return $outputstatus
 }
 New-Alias "opc-joboutput" OpCon_GetJobOutput
 
 #Gets a user from the OpCon database
-function OpCon_GetUserByComment($comment,$url,$token)
+function OpCon_GetUserByComment
 {
-    $hdr = @{"authorization" = $token}
-
-    $uriget = $url + "/api/users?includeDetails=true"
+    Param(
+        [Parameter(Mandatory=$true)] [string]$url
+        ,[Parameter(Mandatory=$true)] [string]$token
+        ,[Parameter(Mandatory=$true)] [string]$comment
+    )
 
     try
     {
-        $user = (Invoke-RestMethod -Method GET -Uri $uriget -Headers $hdr -ContentType "application/json")
+        $user = Invoke-RestMethod -Method GET -Uri ($url + "/api/users?includeDetails=true") -Headers @{"authorization" = $token} -ContentType "application/json"
+
+        return $user | Where-Object{ $_.moreDetails -like "*$comment*" }
     }
     catch [Exception]
     {
-		Write-Host $_.Exception.Message
+        Write-Output $_.Exception
+		Write-Output $_.Exception.Message
     }
 
-    return $user | Where-Object{ $_.moreDetails -like "*$comment*" }
 }
 New-Alias "opc-userbycomment" OpCon_GetUserByComment
 
 #Get vision tags
-function OpCon_GetTags($url,$token,$date)
+function OpCon_GetTags
 {
-    $hdr = @{"authorization" = $token}
-
-    if(!$date)
-    {
-        $date = Get-Date -format "yyyy-MM-dd"
-    }
-
-    $uriget = $url + "/api/vision/cards?dates=" + $date
+    Param(
+        [Parameter(Mandatory=$true)] [string]$url
+        ,[Parameter(Mandatory=$true)] [string]$token
+        ,[string]$date = (Get-Date -format "yyyy-MM-dd")
+    )
 
     try
     {
-        $schedule = (Invoke-RestMethod -Method GET -Uri $uriget -Headers $hdr -ContentType "application/json")
+        $schedule = Invoke-RestMethod -Method GET -Uri ($url + "/api/vision/cards?dates=" + $date) -Headers @{"authorization" = $token} -ContentType "application/json"
+
+        if($schedule.Count -eq 0)
+        { Write-Output "No schedules found!" }
+        else 
+        { return $schedule }
     }
     catch [Exception]
     {
-        Write-Host $_.Exception.Message
+        Write-Output $_.Exeption
+        Write-Output $_.Exception.Message
     }
-
-    if($schedule.Count -eq 0)
-    {
-        Write-Host "No schedules found!"
-    }
-
-    return $schedule
 }
 New-Alias "opc-gettags" OpCon_GetTags
 
 #Gets daily jobs by tag for a date
-function OpCon_GetDailyJobsByTag($url,$token,$date,$tag)
+function OpCon_GetDailyJobsByTag
 {
-    $hdr = @{"authorization" = $token}
-
-    if(!$date)
-    {
-        $date = Get-Date -format "yyyy-MM-dd"
-    }
-
-    $uriget = $url + "/api/dailyjobs?tags=" + $tag + "&dates=" + $date
+    Param(
+        [Parameter(Mandatory=$true)] [string]$url
+        ,[Parameter(Mandatory=$true)] [string]$token
+        ,[string] $date = (Get-Date -format "yyyy-MM-dd")
+        ,[Parameter(Mandatory=$true)] [string]$tag
+    )
 
     try
     {
-        $count = (Invoke-RestMethod -Method GET -Uri $uriget -Headers $hdr -ContentType "application/json")
+        return Invoke-RestMethod -Method GET -Uri ($url + "/api/dailyjobs?tags=" + $tag + "&dates=" + $date) -Headers @{"authorization" = $token} -ContentType "application/json"
     }
     catch [Exception]
     {
-        Write-Host $_.Exception.Message
+        Write-Output $_.Exception
+        Write-Output $_.Exception.Message
     }
-
-    return $count
 }
 New-Alias "opc-dailyjobbytag" OpCon_GetDailyJobsByTag
 
 #Get Agent count by status
-function OpCon_GetAgentCountByStatus($url,$token)
+function OpCon_GetAgentCountByStatus
 {
-    $hdr = @{"authorization" = $token}
-
-    if(!$date)
-    {
-        $date = Get-Date -format "yyyy-MM-dd"
-    }
-
-    $uriget = $url + "/api/machines/count_by_status" #?terminationDescription=" + $status
+    Param(
+        [Parameter(Mandatory=$true)] [string]$url
+        ,[Parameter(Mandatory=$true)] [string]$token
+        ,[string] $date = (Get-Date -format "yyyy-MM-dd")
+    )
 
     try
     {
-        $count = (Invoke-RestMethod -Method GET -Uri $uriget -Headers $hdr -ContentType "application/json")
+        return Invoke-RestMethod -Method GET -Uri ($url + "/api/machines/count_by_status") -Headers @{"authorization" = $token} -ContentType "application/json"
     }
     catch [Exception]
     {
-        Write-Host $_.Exception.Message
+        Write-Output $_.Exception
+        Write-Output $_.Exception.Message
     }
-
-    return $count
 }
 New-Alias "opc-agentcountbystatus" GetAgentCountByStatus
 
 #Get dependencies for a job
-function OpCon_GetDependencyByJob($url,$token,$sname,$jname,$date,$jid)
+function OpCon_GetDependencyByJob
 {
-    $hdr = @{"authorization" = $token}
+    Param(
+        [Parameter(Mandatory=$true)] [string]$url
+        ,[Parameter(Mandatory=$true)] [string]$token
+        ,[string]$jid
+        ,[string]$sname
+        ,[string]$jname
+        ,[string]$date = (Get-Date -format "yyyy-MM-dd")
+    )
 
     if(!$jid)
     {
         if(!$sname -or !$jname)
         {
-            Write-Host "Error, if no job id supplied then schedule/job name required!"
-        }
-        elseif(!$date)
-        {
-            $date = Get-Date -format "yyyy-MM-dd"
+            Write-Output "Error, if no job id supplied then schedule/job name required!"
+            Exit 1
         }
 
         $jid = (OpCon_GetDailyJob -url $url -token $token -sname $sname -jname $jname -date $date).id
     }
 
-    $uriget = $url + "/api/dailygraphedges/" + $jid
-
     try
     {
-        $result = (Invoke-RestMethod -Method GET -Uri $uriget -Headers $hdr -ContentType "application/json")
+        return Invoke-RestMethod -Method GET -Uri ($url + "/api/dailygraphedges/" + $jid) -Headers @{"authorization" = $token} -ContentType "application/json"
     }
     catch [Exception]
     {
-        Write-Host $_.Exception.Message
+        Write-Output $_.Exception
+        Write-Output $_.Exception.Message
     }
-
-    return $result
 }
 New-Alias "opc-getdependency" OpCon_GetDependencyByJob
 
@@ -1911,16 +1944,14 @@ function OpCon_GetSSChoice($dropdown,$url,$token,$button)
     if(@($get).Count -eq 1)
     {
         $get = $get[0]
+
+        #Get XML information for adding/deleting
+        $details = [xml] $get.details
+
+        return $details.request.variables.variable.choice.items.ChildNodes
     }
     else
-    {
-        Write-Host "No button named $button!"
-    }
-
-    #Get XML information for adding/deleting
-    $details = [xml] $get.details
-
-    return $details.request.variables.variable.choice.items.ChildNodes
+    { Write-Host "No button named $button!" }
 }
 #New-Alias "opcssc" OpCon_GetSSChoice
 
@@ -1931,28 +1962,22 @@ function OpCon_GetSSInput($url,$token,$button)
     if(@($get).Count -eq 1)
     {
         $get = $get[0]
+
+        #Get XML information for adding/deleting
+        $details = [xml] $get.details
+
+        return @($details.request.variables.variable)
     }
     else
-    {
-        Write-Host "No button named $button!"
-    }
-
-    #Get XML information for adding/deleting
-    $details = [xml] $get.details
-
-    return @($details.request.variables.variable)
+    { Write-Host "No button named $button!" }
 }
 
 #Creates an OpCon Role
 function OpCon_CreateRole($url,$token,$rolename,$inheritSchedule,$inheritMach,$inheritMachGroup,$permissions)
-{
-    $hdr = @{"authorization" = $token}
-    
+{ 
     #Check if role already exists
     if(OpCon_GetRole -url $url -token $token -rolename "$rolename")
-    {
-        Write-Host "Role already exists"
-    }
+    { Write-Host "Role already exists" }
     else
     {
         #Get role information
@@ -1975,12 +2000,9 @@ function OpCon_CreateRole($url,$token,$rolename,$inheritSchedule,$inheritMach,$i
             $body | Add-Member -type NoteProperty -name "permissions" -value $permissions
         }
 
-        #$body | ConvertTo-JSON
-
-        $uripost = $url + "/api/roles"
         try
         {
-            $role = (Invoke-Restmethod -Method POST -Uri $uripost -Headers $hdr -Body ($body | ConvertTo-Json) -ContentType "application/json")
+            $role = Invoke-Restmethod -Method POST -Uri ($url + "/api/roles") -Headers @{"authorization" = $token} -Body ($body | ConvertTo-Json) -ContentType "application/json"
         }
         catch [Exception]
         {
@@ -2033,19 +2055,15 @@ New-Alias "opc-createssbutton" OpCon_CreateServiceRequest
 
 #Deletes a Service Request
 function OpCon_DeleteServiceRequest($url,$token,$name)
-{
-    $hdr = @{"authorization" = $token}
-    
+{  
     $button = OpCon_GetSSButton -url $url -token $token -button "$name"
     
     #Check if button exists
     if($button)
     {
-        $uridelete = $url + "/api/ServiceRequests/" + $button.id
-
         try
         {
-            $servicerequest = (Invoke-Restmethod -Method DELETE -Uri $uridelete -Headers $hdr -Body "{}" -ContentType "application/json")
+            $servicerequest = Invoke-Restmethod -Method DELETE -Uri ($url + "/api/ServiceRequests/" + $button.id) -Headers @{"authorization" = $token} -Body "{}" -ContentType "application/json"
         }
         catch [Exception]
         {
@@ -2056,19 +2074,15 @@ function OpCon_DeleteServiceRequest($url,$token,$name)
         return $servicerequest        
     }
     else
-    {
-        Write-Host "Service Request does not exist"
-    }
+    { Write-Host "Service Request does not exist" }
 }
 New-Alias "opc-deletebutton" OpCon_DeleteServiceRequest
 
 #Adds a role to a SS button
 function OpCon_AddSSButtonRole($url,$token,$button,$rolename)
-{
-    $hdr = @{"authorization" = $token}
-    
-    $getbutton = OpCon_GetSSButton -url $url -token $token -button $button
+{    
     $rolecheck = "true"
+    $getbutton = OpCon_GetSSButton -url $url -token $token -button $button
     $getbutton.roles | ForEach-Object{ If($_.name -eq $rolename)
                                        { $rolecheck = "false" }
                                      }
@@ -2077,10 +2091,9 @@ function OpCon_AddSSButtonRole($url,$token,$button,$rolename)
         $getrole = OpCon_GetRole -url $url -token $token -rolename $rolename
         $getbutton.roles += $getrole
 
-        $uripost = $url + "/api/ServiceRequests/" + $getbutton.id
         try
         {
-            $update = Invoke-RestMethod -Method PUT -Uri $uripost -Body ($getbutton | ConvertTo-JSON) -Headers $hdr -ContentType "application/json"
+            $update = Invoke-RestMethod -Method PUT -Uri ($url + "/api/ServiceRequests/" + $getbutton.id) -Body ($getbutton | ConvertTo-JSON) -Headers @{"authorization" = $token} -ContentType "application/json"
         }
         catch [Exception]
         {
@@ -2091,24 +2104,19 @@ function OpCon_AddSSButtonRole($url,$token,$button,$rolename)
         return $update
     }
     Else
-    {
-        Write-Host "Button already has role $rolename !"
-    }
+    { Write-Host "Button already has role $rolename !" }
 }
 New-Alias "opc-addssbuttonrole" OpCon_AddSSButtonRole
 
 #Updates a particular field on a SS button
 function OpCon_UpdateSSButton($url,$token,$button,$field,$value)
-{
-    $hdr = @{"authorization" = $token}
-    
+{  
     $getbutton = OpCon_GetSSButton -url $url -token $token -button $button
     $getbutton.$field = $value
 
-    $uripost = $url + "/api/ServiceRequests/" + $getbutton.id
     try
     {
-        $update = Invoke-RestMethod -Method PUT -Uri $uripost -Body ($getbutton | ConvertTo-Json -Depth 7) -Headers $hdr -ContentType "application/json"
+        $update = Invoke-RestMethod -Method PUT -Uri ($url + "/api/ServiceRequests/" + $getbutton.id) -Body ($getbutton | ConvertTo-Json -Depth 7) -Headers @{"authorization" = $token} -ContentType "application/json"
     }
     catch [Exception]
     {
@@ -2150,50 +2158,40 @@ New-Alias "opc-getsscategory" OpCon_GetServiceRequestCategory
 #Removes a specific role from a user in OpCon
 function OpCon_RemoveUserRole($user,$rolename,$url,$token)
 {
-    $hdr = @{"authorization" = $token}
-
     $userinfo = OpCon_GetUser -username $user -url $url -token $token
     $role = @(OpCon_GetRole -rolename $rolename -url $url -token $token)
     if($role.Count -eq 1)
     {
         $role = $role[0]
+
+        if($userinfo[0].Roles.name -contains "$rolename") 
+        { 
+            $userinfo[0].Roles = @($userinfo[0].Roles | Where-Object { $_.name -ne "$rolename" })
+            $body = $userinfo[0] | ConvertTo-Json -Depth 4
+    
+            try
+            {
+                $result = Invoke-RestMethod -Method PUT -Uri ($url + "/api/users/" + $userinfo.id) -Headers @{"authorization" = $token} -Body $body -ContentType "application/json"
+            }
+            catch [Exception]
+            {
+                Write-Host $_
+                Write-Host $_.Exception.Message
+            }
+        }
+        else
+        { Write-Host "Role $rolename is not on user account, not removing" }
+    
+        return $result
     }
     else
-    {
-        Write-Host "Role $rolename not found or multiple rolenames found!"
-    }
-
-    if($userinfo[0].Roles.name -contains "$rolename") 
-    { 
-        $userinfo[0].Roles = @($userinfo[0].Roles | Where-Object { $_.name -ne "$rolename" })
-        $body = $userinfo[0] | ConvertTo-Json -Depth 4
-
-        $uriput = $url + "/api/users/" + $userinfo.id
-        try
-        {
-            $result = (Invoke-RestMethod -Method PUT -Uri $uriput -Headers $hdr -Body $body -ContentType "application/json")
-        }
-        catch [Exception]
-        {
-		    Write-Host $_.Exception.Message
-        }
-    }
-    else
-    {
-        Write-Host "Role $rolename is not on user account, not removing"
-    }
-
-    return $result
+    { Write-Host "Role $rolename not found or multiple rolenames found!" }
 }
 New-Alias "opc-removerole" OpCon_RemoveUserRole
 
 #Handles schedule builds
 function OpCon_ScheduleBuild($url,$token,$schedules,$dates,$logfile,$overwrite,$properties,$hold,$namedInstance,$machineName)
 {
-    $hdr = @{"authorization" = $token}
-
-    $body = New-Object System.Object
-
     #Checks that a schedule name was provided
     if($schedules)
     {
@@ -2202,109 +2200,106 @@ function OpCon_ScheduleBuild($url,$token,$schedules,$dates,$logfile,$overwrite,$
         { $schedules.Split(";") | ForEach-Object{ $scheduleArray += [PSCustomObject]@{ "name" = $_ } } }
         else
         { $scheduleArray += [PSCustomObject]@{"name" = $schedules } }
-    }
-    else
-    {
-        Write-Host "No schedule name/s provided!"
-    }
-    
-    #Use todays date if none provided
-    if($dates)
-    {
-        $dateArray = @()
-        if($dates -like "*;*")
-        { $dates.Split(";") | ForEach-Object{ $dateArray += $_ } }
-        else
-        { $dateArray += $dates }
-    }
-    else
-    { $dateArray = @(Get-Date -Format "yyyy/MM/dd") }
 
-    #Check to see if properties were provided
-    if($properties)
-    {
-        $propertyArray = @()
-        if($properties -like "*;*")
+        #Use todays date if none provided
+        if($dates)
         {
-            $properties.Split(";") | ForEach-Object{ $splitter = $_.Split(",") 
-                                                     $propertyArray += @{ key=$splitter[0];value=$splitter[1] } }
+            $dateArray = @()
+            if($dates -like "*;*")
+            { $dates.Split(";") | ForEach-Object{ $dateArray += $_ } }
+            else
+            { $dateArray += $dates }
         }
         else
+        { $dateArray = @(Get-Date -Format "yyyy/MM/dd") }
+
+        #Check to see if properties were provided
+        if($properties)
         {
-            $splitter = $properties.Split(",")
-            $propertyArray += @{ key=$splitter[0];value=$splitter[1] }
+            $propertyArray = @()
+            if($properties -like "*;*")
+            {
+                $properties.Split(";") | ForEach-Object{ 
+                        $splitter = $_.Split(",") 
+                        $propertyArray += @{ key=$splitter[0];value=$splitter[1] } 
+                }
+            }
+            else
+            {
+                $splitter = $properties.Split(",")
+                $propertyArray += @{ key=$splitter[0];value=$splitter[1] }
+            }
         }
+
+        if(!$overwrite)
+        { $overwrite = $false }
+
+        $body = New-Object System.Object
+        $body | Add-Member -type NoteProperty -name "schedules" -value $scheduleArray
+        $body | Add-Member -type NoteProperty -name "dates" -value $dateArray
+        $body | Add-Member -type NoteProperty -name "properties" -value $propertyArray
+        $body | Add-Member -type NoteProperty -name "logFile" -value $logfile
+        $body | Add-Member -type NoteProperty -name "overwrite" -value $overwrite
+        $body | Add-Member -type NoteProperty -name "hold" -value $hold
+        $body | Add-Member -type NoteProperty -name "namedInstance" -value $namedInstance
+        $body | Add-Member -type NoteProperty -name "machineName" -value $machineName 
+
+        try
+        {
+            $build = (Invoke-RestMethod -Method POST -Uri ($url + "/api/schedulebuilds") -Body ($body | ConvertTo-JSON -Depth 7) -Headers @{"authorization" = $token} -ContentType "application/json")
+        }
+        catch [Exception]
+        {
+            Write-Host $_
+            Write-Host $_.Exception.Message
+        }
+
+        $wait = 15
+        for($x=1;$x -lt $wait;$x++)
+        {
+            $status = OpCon_ScheduleBuildStatus -url $url -token $token -id $build.id
+            If($status.message -eq "Completed")
+            { $x = $wait }
+            Else
+            { Start-Sleep -Seconds 1 }
+        }
+
+        If($status.error)
+        { Write-host $status.message }
+        else
+        { return $status }
     }
-
-    if(!$overwrite)
-    { $overwrite = $false }
-
-    $body | Add-Member -type NoteProperty -name "schedules" -value $scheduleArray
-    $body | Add-Member -type NoteProperty -name "dates" -value $dateArray
-    $body | Add-Member -type NoteProperty -name "properties" -value $propertyArray
-    $body | Add-Member -type NoteProperty -name "logFile" -value $logfile
-    $body | Add-Member -type NoteProperty -name "overwrite" -value $overwrite
-    $body | Add-Member -type NoteProperty -name "hold" -value $hold
-    $body | Add-Member -type NoteProperty -name "namedInstance" -value $namedInstance
-    $body | Add-Member -type NoteProperty -name "machineName" -value $machineName 
-
-    $uripost = $url + "/api/schedulebuilds"
-    try
-    {
-        $build = (Invoke-RestMethod -Method POST -Uri $uripost -Body ($body | ConvertTo-JSON -Depth 7) -Headers $hdr -ContentType "application/json")
-    }
-    catch [Exception]
-    {
-        Write-Host $_
-        Write-Host $_.Exception.Message
-    }
-
-    $wait = 15
-    for($x=1;$x -lt $wait;$x++)
-    {
-        $status = OpCon_ScheduleBuildStatus -url $url -token $token -id $build.id
-        If($status.message -eq "Completed")
-        { $x = $wait }
-        Else
-        { Start-Sleep -Seconds 1 }
-    }
-
-    If($status.error)
-    {
-        Write-host $status.message
-    }
-
-    return $status
+    else
+    { Write-Host "No schedule name/s provided!" }
 }
 New-Alias "opc-schbuild" OpCon_ScheduleBuild
 New-Alias "opc-schedulebuild" OpCon_SCheduleBuild
 
 #Checks the status of a Schedule Build
-function OpCon_ScheduleBuildStatus($url,$token,$id)
+function OpCon_ScheduleBuildStatus
 {
-    $hdr = @{"authorization" = $token}
-    
-    $uriget = $url + "/api/schedulebuilds/" + $id
+    Param(
+        [Parameter(Mandatory=$true)] [string]$url
+        ,[Parameter(Mandatory=$true)] [string]$token
+        ,[string] $id
+    )
+
     try
     {
-        $status = (Invoke-RestMethod -Method GET -Uri $uriget -Headers $hdr -ContentType "application/json")
+        return Invoke-RestMethod -Method GET -Uri ($url + "/api/schedulebuilds/" + $id) -Headers @{"authorization" = $token} -ContentType "application/json"
     }
     catch [Exception]
     {
-        Write-Host $_
-        Write-Host $_.Exception.Message
+        Write-Output $_
+        Write-Output $_.Exception.Message
     }
-
-    return $status
 }
 New-Alias "opc-schbuildstatus" OpCon_ScheduleBuildStatus
 New-Alias "opc-schedulebuildstatus" OpCon_ScheduleBuildStatus
 
 #Gets a count of schedules by status
 function OpCon_ScheduleCountByStatus($url,$token,$dates,$name,$failedJobs,$categories)
-{
-    $hdr = @{"authorization" = $token}
-    
+{  
     $uriget = $url + "/api/dailyschedules/count_by_status"
 
     #Get property information
@@ -2342,7 +2337,7 @@ function OpCon_ScheduleCountByStatus($url,$token,$dates,$name,$failedJobs,$categ
 
     try
     {
-        $countByStatus = (Invoke-Restmethod -Method GET -Uri $uriget -Headers $hdr -ContentType "application/json")
+        $countByStatus = (Invoke-Restmethod -Method GET -Uri $uriget -Headers @{"authorization" = $token} -ContentType "application/json")
     }
     catch [Exception]
     {
@@ -2356,105 +2351,93 @@ New-Alias "opc-schcountbystatus" OpCon_ScheduleCountByStatus
 New-Alias "opc-schedulecountbystatus" OpCon_ScheduleCountByStatus
 
 #Gets schedule properties
-function OpCon_GetScheduleProperty($url,$token,$id,$name,$schedule,$date)
-{
-    $hdr = @{"authorization" = $token}
+function OpCon_GetScheduleProperty($url,$token,$id,$name,$schedule,$date = (Get-Date -Format "yyyy/MM/dd"))
+{ 
+    If($id -or $schedule)
+    {
+        $uriget = $url + "/api/dailyschedules/"
+
+        if($id)
+        { $uriget = $uriget + $id + "/properties" }
+        else
+        {  
+            $getsid = OpCon_GetSchedule -url $url -token $token -date $date -sname $schedule
+            $uriget = $uriget + $getsid.id + "/properties"
+        }
+
+        If($name)
+        { $uriget = $uriget + "/" + $name }
+
+        try
+        {
+            $properties = Invoke-RestMethod -Method GET -Uri $uriget -Headers @{"authorization" = $token} -ContentType "application/json"
+        }
+        catch [Exception]
+        {
+            Write-Host $_
+            Write-Host $_.Exception.Message
+        }
     
-    $uriget = $url + "/api/dailyschedules/"
-
-    If($id)
-    {
-        $uriget = $uriget + $id + "/properties"
-    }
-    ElseIf($schedule)
-    {
-        if(!$date)
-        { $date = Get-Date -Format "yyyy/MM/dd" }
-
-        
-        $getsid = OpCon_GetSchedule -url $url -token $token -date $date -sname $schedule
-        $uriget = $uriget + $getsid.id + "/properties"
+        return $properties
     }
     Else
-    {
-        Write-Host "Not enough schedule information!"
-    }
-
-    If($name)
-    {
-        $uriget = $uriget + "/" + $name
-    }
-
-    try
-    {
-        $properties = (Invoke-RestMethod -Method GET -Uri $uriget -Headers $hdr -ContentType "application/json")
-    }
-    catch [Exception]
-    {
-        Write-Host $_
-        Write-Host $_.Exception.Message
-    }
-
-    return $properties
+    { Write-Host "Not enough schedule information!" }
 }
 New-Alias "opc-getschprop" OpCon_GetScheduleProperty
 New-Alias "opc-getscheduleprop" OpCon_GetScheduleProperty
 New-Alias "opc-getscheduleproperty" OpCon_GetScheduleProperty
 
 #Gets access codes
-function OpCon_GetAccessCode($url,$token,$id,$name)
-{
-    $hdr = @{"authorization" = $token}
-    
+function OpCon_GetAccessCode
+{  
+    Param(
+        [Parameter(Mandatory=$true)] [string]$url
+        ,[Parameter(Mandatory=$true)] [string]$token
+        ,[string] $id
+        ,[string] $name
+    )
+
     #Get property information
     If($id)
-    {
-        $uriget = $url + "/api/AccessCodes/" + $id
-    }
+    { $uriget = $url + "/api/AccessCodes/" + $id }
     ElseIf($name)
-    {
-        $uriget = $url + "/api/AccessCodes?name=" + $name
-    }
+    { $uriget = $url + "/api/AccessCodes?name=" + $name }
     Else
-    {
-        $uriget = $url + "/api/AccessCodes"
-    }
+    { $uriget = $url + "/api/AccessCodes" }
 
     try
     {
-        $accessCodes = (Invoke-Restmethod -Method GET -Uri $uriget -Headers $hdr -ContentType "application/json")
+        return Invoke-Restmethod -Method GET -Uri $uriget -Headers @{"authorization" = $token} -ContentType "application/json"
     }
     catch [Exception]
     {
-        write-host $_
-        write-host $_.Exception.Message
+        write-output $_
+        write-output $_.Exception.Message
     }
-    
-    return $accessCodes
 }
 New-Alias "opc-getaccesscode" OpCon_GetAccessCode
 
 #Creates a new access code
-function OpCon_CreateAccessCode($url,$token,$name)
-{
-    $hdr = @{"authorization" = $token}
-    
-    #Get property information
-    $body = New-Object System.Object
-    $body | Add-Member -type NoteProperty -name "name" -value $name
+function OpCon_CreateAccessCode
+{    
+    Param(
+        [Parameter(Mandatory=$true)] [string]$url
+        ,[Parameter(Mandatory=$true)] [string]$token
+        ,[Parameter(Mandatory=$true)] [string]$name
+    )
 
-    $uripost = $url + "/api/AccessCodes"
+    #Setup body
+    $body = @{ "name" = $name }
+
     try
     {
-        $accessCode = (Invoke-Restmethod -Method POST -Uri $uripost -Headers $hdr -Body ($body | ConvertTo-Json) -ContentType "application/json")
+        return Invoke-Restmethod -Method POST -Uri ($url + "/api/AccessCodes") -Headers @{"authorization" = $token} -Body ($body | ConvertTo-Json) -ContentType "application/json"
     }
     catch [Exception]
     {
-        write-host $_
-        write-host $_.Exception.Message
+        write-output $_
+        write-output $_.Exception.Message
     }
-
-    return $accessCode
 }
 New-Alias "opc-createaccesscode" OpCon_CreateAccessCode
 
@@ -2469,82 +2452,61 @@ function OpCon_SetAccessCode($url,$token,$id,$oldName,$name)
         $accessCode | ForEach-Object{ $counter++ }
 
         if($counter -ne 1)
+        { Write-Host "Too many or no access codes found!" }
+        else 
         {
-            Write-Host "Too many or no access codes found!"
+            #Set new name
+            If($name)
+            {
+                $accessCode[0].name = $name
+
+                #Update access code
+                try
+                {
+                    $update = Invoke-Restmethod -Method PUT -Uri ($url + "/api/AccessCodes/" + $accessCode[0].id) -Headers @{"authorization" = $token} -Body ($accessCode[0] | ConvertTo-Json) -ContentType "application/json"
+                }
+                catch [Exception]
+                {
+                    write-host $_
+                    write-host $_.Exception.Message
+                }
+
+                return $update 
+            }
+            Else
+            { Write-Host "Name not specified!" }           
         }
     }
     Else
-    {
-        Write-Host "Id or Name not specified!"
-    }
-
-    $hdr = @{"authorization" = $token}
-    
-    #Set new name
-    If($name)
-    {
-        $accessCode[0].name = $name
-    }
-    Else
-    {
-        Write-Host "Name not specified!"
-    }
-
-    #Update access code
-    $uriput = $url + "/api/AccessCodes/" + $accessCode[0].id
-    try
-    {
-        $update = (Invoke-Restmethod -Method PUT -Uri $uriput -Headers $hdr -Body ($accessCode[0] | ConvertTo-Json) -ContentType "application/json")
-    }
-    catch [Exception]
-    {
-        write-host $_
-        write-host $_.Exception.Message
-    }
-
-    return $update
+    { Write-Host "Id or Name not specified!" }
 }
 New-Alias "opc-updateaccesscode" OpCon_SetAccessCode
 
 #Gets a batch user or list of users
 function OpCon_GetBatchUser($url,$token,$id,$ids,$loginName,$roleName,$includeRoles)
-{
-    $hdr = @{"authorization" = $token}
-    
+{  
     #Get batchusers
     If($ids -or $loginName -or $roleName -or $includeRoles)
     {
         $uriget = $url + "/api/batchusers?"
 
         If($ids)
-        {
-            $uriget = $uriget + "ids=" + $ids
-        }
+        { $uriget = $uriget + "ids=" + $ids }
         ElseIf($loginName)
-        {
-            $uriget = $uriget + "loginName=" + $loginName
-        }
+        { $uriget = $uriget + "loginName=" + $loginName }
         ElseIf($roleName)
-        {
-            $uriget = $uriget + "roleName=" + $roleName
-        }
+        { $uriget = $uriget + "roleName=" + $roleName }
         ElseIf($includeRoles)
-        {
-            $uriget = $uriget + "includeRoles=" + $includeRoles
-        }
+        { $uriget = $uriget + "includeRoles=" + $includeRoles }
     }
     ElseIf($id)
-    {
-        $uriget = $url + "/api/batchusers/" + $id
-    }
+    { $uriget = $url + "/api/batchusers/" + $id }
     Else
-    {
-        $uriget = $url + "/api/batchusers"
-    }
+    { $uriget = $url + "/api/batchusers" }
 
     try
     {
-        $batchUsers = (Invoke-Restmethod -Method GET -Uri $uriget -Headers $hdr -ContentType "application/json")
+        $batchUsers = Invoke-Restmethod -Method GET -Uri $uriget -Headers @{"authorization" = $token} -ContentType "application/json"
     }
     catch [Exception]
     {
@@ -2559,8 +2521,6 @@ New-Alias "opc-getbatchuser" OpCon_GetBatchUser
 #Creates a new batch user
 function OpCon_CreateBatchUser($url,$token,$platformName,$loginName,$password,$roleNames)
 {
-    $hdr = @{"authorization" = $token}
-    
     #Assign Agent type # based off OS name
     If($platformName)
     {
@@ -2568,15 +2528,11 @@ function OpCon_CreateBatchUser($url,$token,$platformName,$loginName,$password,$r
         for($x=0;$x -lt $platformArray.Count;$x++)
         {
             If($platformArray[$x] -eq $platformName)
-            {
-                $platformId = $x
-            }
+            { $platformId = $x }
         }
     
         if((!$platformId) -or ($platformId -eq "NA"))
-        {
-            Write-Host "Invalid platform"
-        }
+        { Write-Host "Invalid platform" }
 
         $platformObject = @{ id=$platformId;name=$platformName }
     }
@@ -2598,41 +2554,36 @@ function OpCon_CreateBatchUser($url,$token,$platformName,$loginName,$password,$r
                 $roleIdArray += @{ id=$roleObject.id;name=$roleObject.name }
             }
             else
-            {
-                Write-Host "Role" $roleNameArray[$x] "not found!"
-            }
+            { Write-Host "Role" $roleNameArray[$x] "not found!" }
         }
     }
 
     #Verify login name
     If(!$loginName)
-    {
-        Write-Host "No login name specified"
-    }
+    { Write-Host "No login name specified" }
     ElseIf(!$password)
+    { Write-Host "Password not specified!" }
+    else 
     {
-        Write-Host "Password not specified!"
-    }
+         #Builds Batch User object
+        $body = New-Object System.Object
+        $body | Add-Member -type NoteProperty -name "loginName" -value $loginName
+        $body | Add-Member -type NoteProperty -name "roles" -value $roleIdArray
+        $body | Add-Member -type NoteProperty -name "password" -value $password 
+        $body | Add-Member -type NoteProperty -name "platform" -value $platformObject
 
-    #Builds Batch User object
-    $body = New-Object System.Object
-    $body | Add-Member -type NoteProperty -name "loginName" -value $loginName
-    $body | Add-Member -type NoteProperty -name "roles" -value $roleIdArray
-    $body | Add-Member -type NoteProperty -name "password" -value $password 
-    $body | Add-Member -type NoteProperty -name "platform" -value $platformObject
+        try
+        {
+            $batchUser = Invoke-Restmethod -Method POST -Uri ($url + "/api/batchusers") -Headers @{"authorization" = $token} -Body ($body | ConvertTo-Json -Depth 7) -ContentType "application/json"
+        }
+        catch [Exception]
+        {
+            write-host $_
+            write-host $_.Exception.Message
+        }
 
-    $uripost = $url + "/api/batchusers"
-    try
-    {
-        $batchUser = (Invoke-Restmethod -Method POST -Uri $uripost -Headers $hdr -Body ($body | ConvertTo-Json -Depth 7) -ContentType "application/json")
+        return $batchUser   
     }
-    catch [Exception]
-    {
-        write-host $_
-        write-host $_.Exception.Message
-    }
-
-    return $batchUser
 }
 New-Alias "opc-newbatchuser" OpCon_CreateBatchUser
 
@@ -2647,14 +2598,10 @@ function OpCon_SetBatchUser($url,$token,$loginName,$roleNames)
         $user | ForEach-Object{ $counter++ }
 
         if($counter -ne 1)
-        {
-            Write-Host "Too many or no properties found!"
-        }
+        { Write-Host "Too many or no properties found!" }
     }
     Else
-    {
-        Write-Host "loginName not specified!"
-    }
+    { Write-Host "loginName not specified!" }
 
     $hdr = @{"authorization" = $token}
 
@@ -2671,9 +2618,7 @@ function OpCon_SetBatchUser($url,$token,$loginName,$roleNames)
                 $roleIdArray += @{ id=$roleObject.id;name=$roleObject.name }
             }
             else
-            {
-                Write-Host "Role" $roleNameArray[$x] "not found!"
-            }
+            { Write-Host "Role" $roleNameArray[$x] "not found!" }
         }
         $user[0] | Add-Member -type NoteProperty -name "roles" -value @($roleObject)
         #$user[0].roles = $roleObject
@@ -2702,46 +2647,39 @@ New-Alias "opc-updatebatchuser" OpCon_SetBatchUser
 #Starts or stops an OpCon agent based on parameters *New version of ChangeAgentStatus*
 function OpCon_MachineAction($url,$token,$agentName,$action)
 {
-    $hdr = @{"authorization" = $token}
-
     $machine = OpCon_GetAgent -agentname $agentName -url $url -token $token
 
     $count = 0
     $machine | ForEach-Object{ $count++ }
+
     if($count -eq 0)
-    {
-        Write-Host "No agent by that name!"
-    }
+    { Write-Host "No agent by that name!" }
     else
-    {
-        $machine = $machine[0]
-    }
+    { $machine = $machine[0] }
 
     #Enable/Disable the machine
     $machinesArray = @()
     $machinesArray += @{ id=$machine.id }
-    $body = New-Object System.Object
-    $body | Add-Member -type NoteProperty -name "machines" -value $machinesArray
-    $body | Add-Member -type NoteProperty -name "action" -value $action
 
-    $uripost = $url + "/api/machineactions"
+    $body = @{
+        "machines" = $machinesArray;
+        "action" = $action
+    }
+
     try
     {
-        $machineaction = (Invoke-Restmethod -Method POST -Uri $uripost -Headers $hdr -Body ($body | ConvertTo-Json) -ContentType "application/json")
+        $machineaction = (Invoke-Restmethod -Method POST -Uri ($url + "/api/machineactions") -Headers @{"authorization" = $token} -Body ($body | ConvertTo-Json) -ContentType "application/json")
     }
     catch [Exception]
     {
+        Write-Host $_
         write-host $_.Exception.Message
     }
 
     if($machineaction.result -eq "success")
-    {
-        return $machineaction
-    }
+    { return $machineaction }
     elseif($machineaction.result -eq "error")
-    {
-        Write-Host "Machine action attempt had an error"
-    }
+    { Write-Host "Machine action attempt had an error" }
     else
     {
         for($x = 0;$x -lt 20;$x++)
@@ -2766,61 +2704,47 @@ New-Alias "opc-machaction" OpCon_MachineAction
 New-Alias "opc-machineaction" OpCon_MachineAction
 
 #Gets information about an OpCon Agent
-function OpCon_GetMachineAction($url,$token,$id)
+function OpCon_GetMachineAction
 {
-    $hdr = @{"authorization" = $token}
+    Param(
+        [Parameter(Mandatory=$true)] [string]$url
+        ,[Parameter(Mandatory=$true)] [string]$token
+        ,[Parameter(Mandatory=$true)] [string]$id
+    )
 
     #Validates id is passed
-    If($id)
-    {
-        $uriget = $url + "/api/machineactions/" + $id
-    }
-    Else
-    {
-        Write-Host "No id supplied"
-    }
-
     try
     {
-        $action = (Invoke-Restmethod -Method GET -Uri $uriget -Headers $hdr -ContentType "application/json")
+        return Invoke-Restmethod -Method GET -Uri ($url + "/api/machineactions/" + $id) -Headers @{"authorization" = $token} -ContentType "application/json"
     }
     catch [Exception]
     {
-        Write-Host $_
-        Write-Host $_.Exception.Message
+        Write-Output $_
+        Write-Output $_.Exception.Message
     }
-    
-    return $action
 }
 New-Alias "opc-getmachaction" OpCon_GetMachineAction
 New-Alias "opc-getmachineaction" OpCon_GetMachineAction
 
 #Gets information about a submitted Job Action
-function OpCon_GetJobAction($url,$token,$id)
+function OpCon_GetJobAction
 {
-    $hdr = @{"authorization" = $token}
+    Param(
+        [Parameter(Mandatory=$true)] [string]$url
+        ,[Parameter(Mandatory=$true)] [string]$token
+        ,[Parameter(Mandatory=$true)] [string]$id
+    )
 
     #Validates id is passed
-    If($id)
-    {
-        $uriget = $url + "/api/jobactions/" + $id
-    }
-    Else
-    {
-        Write-Host "No id supplied"
-    }
-
     try
     {
-        $action = (Invoke-Restmethod -Method GET -Uri $uriget -Headers $hdr -ContentType "application/json")
+        return Invoke-Restmethod -Method GET -Uri ($url + "/api/jobactions/" + $id) -Headers @{"authorization" = $token} -ContentType "application/json"
     }
     catch [Exception]
     {
         Write-Host $_
         Write-Host $_.Exception.Message
     }
-    
-    return $action
 }
 New-Alias "opc-getjobaction" OpCon_GetJobAction
 
@@ -2837,14 +2761,10 @@ function OpCon_GetServiceRequestChoice($url,$token,$button,$dropdown)
             return $result.choice.items.ChildNodes
         }
         else
-        {
-            Write-Host "No dropdowns called $dropdown"
-        }
+        { Write-Host "No dropdowns called $dropdown" }
     }
     else
-    {
-        Write-Host "No dropdown specified!"
-    }
+    { Write-Host "No dropdown specified!" }
 }
 New-Alias "opc-getsschoice" OpCon_GetServiceRequestChoice
 
@@ -2895,12 +2815,9 @@ New-Alias "opc-getssinput" OpCon_GetServiceRequestInput
 #Gets information about all Self Service button
 function OpCon_GetAllSSButtons($url,$token)
 {
-    $hdr = @{"authorization" = $token}
-    $uriget = $url + "/api/ServiceRequests" #?name=
-
     try
     {
-        $getbutton = Invoke-RestMethod -Method GET -Uri $uriget -Headers $hdr -ContentType "application/json"
+        $getbutton = Invoke-RestMethod -Method GET -Uri ($url + "/api/ServiceRequests") -Headers @{"authorization" = $token} -ContentType "application/json"
     }
     catch [Exception]
     {
@@ -2956,8 +2873,6 @@ New-Alias "opc-getallcategories" OpCon_GetAllServiceRequestCategories
 #Updates a Self Service category
 function OpCon_OverwriteServiceRequestCategory($url,$token,$category,$destCategory,$destCategoryId)
 {
-    $hdr = @{"authorization" = $token}
-
 	if($destCategory)
 	{
 		$oldCategory = (OpCon_GetServiceRequestCategory -url $url -token $token -category $destCategory).id
@@ -2972,10 +2887,9 @@ function OpCon_OverwriteServiceRequestCategory($url,$token,$category,$destCatego
 	}
 
 	$category.id = $oldCategory
-    $uriput = $url + "/api/ServiceRequestCategories/" + $oldCategory
     try
     {
-        $update = Invoke-RestMethod -Method PUT -Uri $uriput -Body ($category | ConvertTo-Json -Depth 7) -Headers $hdr -ContentType "application/json"
+        $update = Invoke-RestMethod -Method PUT -Uri ($url + "/api/ServiceRequestCategories/" + $oldCategory) -Body ($category | ConvertTo-Json -Depth 7) -Headers @{"authorization" = $token} -ContentType "application/json"
     }
     catch [Exception]
     {
@@ -2997,26 +2911,17 @@ New-Alias "opc-overwritesscategory" OpCon_OverwriteServiceRequestCategory
 #Updates a particular field on a SS button
 function OpCon_OverwriteServiceRequest($url,$token,$button,$destButton,$destButtonId)
 {
-    $hdr = @{"authorization" = $token}
-
 	if($destButton)
-	{
-		$oldButton = (OpCon_GetServiceRequest -url $url -token $token -button $destButton).id
-	}
+	{ $oldButton = (OpCon_GetServiceRequest -url $url -token $token -button $destButton).id	}
 	elseif($destButtonId)
-	{
-		$oldButton = (OpCon_GetServiceRequest -url $url -token $token -id $destButtonId).id
-	}
+	{ $oldButton = (OpCon_GetServiceRequest -url $url -token $token -id $destButtonId).id }
 	else
-	{
-		$oldButton = $button.id
-	}
+	{ $oldButton = $button.id }
 
 	$button.id = $oldButton
-    $uripost = $url + "/api/ServiceRequests/" + $oldButton
     try
     {
-        $update = Invoke-RestMethod -Method PUT -Uri $uripost -Body ($button | ConvertTo-Json -Depth 7) -Headers $hdr -ContentType "application/json"
+        $update = Invoke-RestMethod -Method PUT -Uri ($url + "/api/ServiceRequests/" + $oldButton) -Body ($button | ConvertTo-Json -Depth 7) -Headers @{"authorization" = $token} -ContentType "application/json"
     }
     catch [Exception]
     {
@@ -3038,12 +2943,9 @@ New-Alias "opc-overwritessbutton" OpCon_OverwriteServiceRequest
 #Gets information about all Self Service button
 function OpCon_GetAllServiceRequests($url,$token)
 {
-    $hdr = @{"authorization" = $token}
-    $uriget = $url + "/api/ServiceRequests?name="
-
     try
     {
-        $getbutton = Invoke-RestMethod -Method GET -Uri $uriget -Headers $hdr -ContentType "application/json"
+        $getbutton = Invoke-RestMethod -Method GET -Uri ($url + "/api/ServiceRequests?name=") -Headers @{"authorization" = $token} -ContentType "application/json"
     }
     catch [Exception]
     {
@@ -3056,182 +2958,173 @@ function OpCon_GetAllServiceRequests($url,$token)
 New-Alias "opc-getssbuttons" OpCon_GetAllServiceRequests
 
 # Gets Daily Vision Workspaces
-function OpCon_GetDailyVisionWorkspaces($url,$token)
+function OpCon_GetDailyVisionWorkspaces
 {
-    $hdr = @{"authorization" = $token}
-    $uriget = $url + "/api/dailyvisionworkspaces"
+    Param(
+        [Parameter(Mandatory=$true)] [string]$url
+        ,[Parameter(Mandatory=$true)] [string]$token
+    )
 
     try
     {
-        $vision = Invoke-Restmethod -Method GET -Uri $uriget -Headers $hdr -ContentType "application/json"
+        return Invoke-Restmethod -Method GET -Uri ($url + "/api/dailyvisionworkspaces") -Headers @{"authorization" = $token} -ContentType "application/json"
     }
     catch [Exception]
     {
-        Write-Host $_
-        Write-Host $_.Exception.Message
+        Write-Output $_
+        Write-Output $_.Exception.Message
     }
-    
-    return $vision
 }
 New-Alias "opc-getdailyvision" OpCon_GetDailyVisionWorkspaces
 
 # Gets Master Vision Workspaces
-function OpCon_GetMasterVisionWorkspaces($url,$token)
+function OpCon_GetMasterVisionWorkspaces
 {
-    $hdr = @{"authorization" = $token}
-    $uriget = $url + "/api/mastervisionworkspaces"
+    Param(
+        [Parameter(Mandatory=$true)] [string]$url
+        ,[Parameter(Mandatory=$true)] [string]$token
+    )
 
     try
     {
-        $vision = Invoke-Restmethod -Method GET -Uri $uriget -Headers $hdr -ContentType "application/json"
+        return Invoke-Restmethod -Method GET -Uri ($url + "/api/mastervisionworkspaces") -Headers @{"authorization" = $token} -ContentType "application/json"
     }
     catch [Exception]
     {
-        Write-Host $_
-        Write-Host $_.Exception.Message
+        Write-Output $_
+        Write-Output $_.Exception.Message
     }
-    
-    return $vision
 }
 New-Alias "opc-getmastervision" OpCon_GetMasterVisionWorkspaces
 
 # Updates Master Vision workspaces based on passed in object
-function OpCon_UpdateMasterVisionWorkspaces($url,$token,$id,$workspaceObj)
+function OpCon_UpdateMasterVisionWorkspaces
 {
-    $hdr = @{"authorization" = $token}
-    $uriput = $url + "/api/mastervisionworkspaces/$id"
-
-    $body = $workspaceObj
+    Param(
+        [Parameter(Mandatory=$true)] [string]$url
+        ,[Parameter(Mandatory=$true)] [string]$token
+        ,[Parameter(Mandatory=$true)] [string]$id
+        ,[Parameter(Mandatory=$true)] [string]$workspaceObj
+    )
 
     try
     {
-        $vision = Invoke-Restmethod -Method PUT -Uri $uriput -Body ($body | ConvertTo-Json -Depth 15) -Headers $hdr -ContentType "application/json"
+        return Invoke-Restmethod -Method PUT -Uri ($url + "/api/mastervisionworkspaces/" + $id) -Body ($workspaceObj | ConvertTo-Json -Depth 15) -Headers @{"authorization" = $token} -ContentType "application/json"
     }
     catch [Exception]
     {
-        Write-Host $_
-        Write-Host $_.Exception.Message
+        Write-Output $_
+        Write-Output $_.Exception.Message
     }
-    
-    return $vision
 }
 New-Alias "opc-updatemastervision" OpCon_UpdateMasterVisionWorkspaces
 
 # Gets OpCon server options
-function OpCon_GetServerOptions($url,$token)
+function OpCon_GetServerOptions
 {
-    $hdr = @{"authorization" = $token}
-
-    $uriget = $url + "/api/serverOptions"
+    Param(
+        [Parameter(Mandatory=$true)] [string]$url
+        ,[Parameter(Mandatory=$true)] [string]$token
+    )
 
     try
     {
-        $servOptions = Invoke-Restmethod -Method GET -Uri $uriget -Headers $hdr -ContentType "application/json"
+        return Invoke-Restmethod -Method GET -Uri ($url + "/api/serverOptions") -Headers @{"authorization" = $token} -ContentType "application/json"
     }
     catch [Exception]
     {
-        Write-Host $_
-        Write-Host $_.Exception.Message
+        Write-Output $_
+        Write-Output $_.Exception.Message
     }
-    
-    return $servOptions
 }
 New-Alias "opc-serveroptions" OpCon_GetServerOptions
 
 # Updates Server Options
-function OpCon_UpdateServerOptions($url,$token,$optionsObj)
+function OpCon_UpdateServerOptions
 {
-    $hdr = @{"authorization" = $token}
-
-    $uriput = $url + "/api/serverOptions"
-    $body = $optionsObj
+    Param(
+        [Parameter(Mandatory=$true)] [string]$url
+        ,[Parameter(Mandatory=$true)] [string]$token
+        ,[Parameter(Mandatory=$true)] [string]$optionsObj
+    )
 
     try
     {
-        $servOptions = Invoke-Restmethod -Method PUT -Uri $uriput -Body ($body | ConvertTo-Json -Depth 5) -Headers $hdr -ContentType "application/json"
+        return Invoke-Restmethod -Method PUT -Uri ($url + "/api/serverOptions") -Body ($optionsObj | ConvertTo-Json -Depth 5) -Headers @{"authorization" = $token} -ContentType "application/json"
     }
     catch [Exception]
     {
-        Write-Host $_
-        Write-Host $_.Exception.Message
+        Write-Output $_
+        Write-Output $_.Exception.Message
     }
-    
-    return $servOptions
 }
 New-Alias "opc-updateserveroptions" OpCon_UpdateServerOptions
 
 #Gets information about a submitted Schedule Action
-function OpCon_GetScheduleAction($url,$token,$id)
+function OpCon_GetScheduleAction
 {
-    $hdr = @{"authorization" = $token}
-
-    $uriget = $url + "/api/ScheduleActions/" + $id
+    Param(
+        [Parameter(Mandatory=$true)] [string]$url
+        ,[Parameter(Mandatory=$true)] [string]$token
+        ,[Parameter(Mandatory=$true)] [string]$id
+    )
 
     try
     {
-        $action = Invoke-RestMethod -Method GET -Uri $uriget -Headers $hdr -ContentType "application/json"
+        return Invoke-RestMethod -Method GET -Uri ($url + "/api/ScheduleActions/" + $id) -Headers @{"authorization" = $token} -ContentType "application/json"
     }
     catch [Exception]
     {
-        Write-Host $_
-        Write-Host $_.Exception.Message
+        Write-Output $_
+        Write-Output $_.Exception.Message
     }
-
-    return $action
 }
 
 #Function to add entries to a Service Request choice selection
 function OpCon_AddSSChoiceMassImport($addname,$addvalue,$getdropdown,$url,$token,$buttonname)
 {
-    $hdr = @{"authorization" = $token}
-
     $get = OpCon_GetSSButton -button $buttonname -url $url -token $token
     if(@($get).Count -eq 1)
     {
         $get = $get[0]
+
+        #Get XML information for adding/deleting
+        $details = [xml] $get.details
+        $xmlFrag = $details.CreateDocumentFragment()
+
+        # Creates one big list of all the items for the dropdown
+        For($x=0;$x -lt $addname.Count;$x++)
+        { $newEntries = $newEntries + "<item><caption>" + $addname[$x] + "</caption><value>" + $addvalue[$x] + "</value></item>" }
+            
+        $xmlFrag.InnerXml = $newEntries
+        $add = ($details.request.variables.variable | Where-Object{$_.name -eq $getdropdown}) | ForEach-Object{$_.choice.items.AppendChild($xmlFrag)}     
+            
+        #Adds modified items back to original object
+        $get.details = $details.InnerXml
+        
+        $uriput = $url + "/api/ServiceRequests/" + $get.id
+        $body = $get | ConvertTo-Json -Depth 3
+            
+        try
+        {
+            $update = Invoke-RestMethod -Method PUT -Uri $uriput -Headers @{"authorization" = $token} -Body $body -ContentType "application/json"
+        }
+        catch [Exception]
+        {
+            Write-Host $_
+            Write-Host $_.Exception.Message
+        }
+
+        return $update
     }
     else
-    {
-        Write-Host "No button named $button!"
-    }
-
-    #Get XML information for adding/deleting
-    $details = [xml] $get.details
-    $xmlFrag = $details.CreateDocumentFragment()
-
-    # Creates one big list of all the items for the dropdown
-    For($x=0;$x -lt $addname.Count;$x++)
-    {
-        $newEntries = $newEntries + "<item><caption>" + $addname[$x] + "</caption><value>" + $addvalue[$x] + "</value></item>"
-    }
-        
-    $xmlFrag.InnerXml = $newEntries
-    $add = ($details.request.variables.variable | Where-Object{$_.name -eq $getdropdown}) | ForEach-Object{$_.choice.items.AppendChild($xmlFrag)}     
-        
-    #Adds modified items back to original object
-    $get.details = $details.InnerXml
-    
-    $uriput = $url + "/api/ServiceRequests/" + $get.id
-    $body = $get | ConvertTo-Json -Depth 3
-        
-    try
-    {
-        $update = Invoke-RestMethod -Method PUT -Uri $uriput -Headers $hdr -Body $body -ContentType "application/json"
-    }
-    catch [Exception]
-    {
-        Write-Host $_.Exception.Message
-    }
-
-    return $update
+    { Write-Host "No button named $button!" }
 }
 New-Alias "opc-ssaddmasschoice" OpCon_AddSSChoiceMassImport
 
 #Updates all the calendar dates
 function OpCon_UpdateAllCalendarDates($url,$token,$name,$id,$dates)
 {
-    $hdr = @{"authorization" = $token}
-
     if($name -or $id)
     {
         $counter = 0
@@ -3247,140 +3140,133 @@ function OpCon_UpdateAllCalendarDates($url,$token,$name,$id,$dates)
         {
             Write-Host "More than 1 or no calendars returned!"
         }
+        else 
+        {
+            if($dates)
+            {
+                $dates = $dates | Select-Object -Unique
+                $uriput = $url + "/api/calendars/" + $calendar[0].id
+                $calendar[0].dates = $dates
+        
+                try
+                {
+                    $calendaradd = Invoke-RestMethod -Method PUT -Uri $uriput -Body ($calendar[0] | ConvertTo-JSON -Depth 7) -Headers @{"authorization" = $token} -ContentType "application/json"
+                }
+                catch [Exception]
+                {
+                    Write-Host $_
+                    Write-Host $_.Exception.Message
+                }
+        
+                return $calendaradd
+            }
+            else
+            { Write-Host "No date/s specified!" }            
+        }
     }
     else
-    {
-        Write-Host "No name or id specified!"
-    }
-    
-    if($dates)
-    {
-        $dates = $dates | Select-Object -Unique
-		$uriput = $url + "/api/calendars/" + $calendar[0].id
-		$calendar[0].dates = $dates
-		$body = $calendar[0] | ConvertTo-JSON -Depth 7
-
-		try
-		{
-			$calendaradd = Invoke-RestMethod -Method PUT -Uri $uriput -Body $body -Headers $hdr -ContentType "application/json"
-		}
-		catch [Exception]
-		{
-			Write-Host $_
-			Write-Host $_.Exception.Message
-		}
-
-		return $calendaradd
-    }
-    else
-    {
-        Write-Host "No date/s specified!"
-    }
+    { Write-Host "No name or id specified!" }
 }
 New-Alias "opc-updateallcalendars" OpCon_ReadLogErrors
 
 #Gets daily jobs
-function OpCon_GetDailyJobs($url,$token,$filter)
+function OpCon_GetDailyJobs
 {
-    $hdr = @{"authorization" = $token}
+    Param(
+        [Parameter(Mandatory=$true)] [string]$url
+        ,[Parameter(Mandatory=$true)] [string]$token
+        ,[string] $filter
+    )
 
     if($filter)
-    {
-        $uriget =  $url + "/api/dailyjobs?" + $filter
-    }
+    { $uriget =  $url + "/api/dailyjobs?" + $filter }
     else
-    {
-        $uriget = $url + "/api/dailyjobs"
-    }
+    { $uriget = $url + "/api/dailyjobs" }
 
     try
     {
-        $jobs = Invoke-RestMethod -Method GET -Uri $uriget -Headers $hdr -ContentType "application/json"
+        return Invoke-RestMethod -Method GET -Uri $uriget -Headers @{"authorization" = $token} -ContentType "application/json"
     }
     catch [Exception]
     {
-        Write-Host $_
-        Write-Host $_.Exception.Message
+        Write-Output $_
+        Write-Output $_.Exception.Message
     }
-
-    return $jobs
 }
 New-Alias "opc-getdailyjobs" OpCon_GetDailyJobs
 
 # Gets scripts by name
-function OpCon_GetScripts($url,$token,$scriptname,$scripttypename,$scriptids,$limit,$offset)
+function OpCon_GetScripts
 {
-    $hdr = @{"authorization" = $token}
-
-    $uriget = $url + "/api/scripts?ScriptName=" + $scriptname.Replace(" ","%20")
+    Param(
+        [Parameter(Mandatory=$true)] [string]$url
+        ,[Parameter(Mandatory=$true)] [string]$token
+        ,[Parameter(Mandatory=$true)] [string]$scriptname
+    )
 
     try
     {
-        $scripts = Invoke-RestMethod -Method GET -Uri $uriget -Headers $hdr -ContentType "application/json"
+        return Invoke-RestMethod -Method GET -Uri ($url + "/api/scripts?ScriptName=" + $scriptname.Replace(" ","%20")) -Headers @{"authorization" = $token} -ContentType "application/json"
     }
     catch [Exception]
     {
-        Write-Host $_.Exception
-        Write-Host $_.Exception.Message
+        Write-Output $_.Exception
+        Write-Output $_.Exception.Message
     }
-
-    return $scripts
 }
 New-Alias "opc-getscripts" OpCon_GetScripts
 
 # Gets all the versions of a script
-function OpCon_GetScriptVersions($url,$token,$id)
+function OpCon_GetScriptVersions
 {
-    $hdr = @{"authorization" = $token}
-
-    $uriget = $url + "/api/scripts/" + $id
+    Param(
+        [Parameter(Mandatory=$true)] [string]$url
+        ,[Parameter(Mandatory=$true)] [string]$token
+        ,[Parameter(Mandatory=$true)] [string]$id
+    )
 
     try
     {
-        $scripts = Invoke-RestMethod -Method GET -Uri $uriget -Headers $hdr -ContentType "application/json"
+        return Invoke-RestMethod -Method GET -Uri ($url + "/api/scripts/" + $id) -Headers @{"authorization" = $token} -ContentType "application/json"
     }
     catch [Exception]
     {
-        Write-Host $_.Exception
-        Write-Host $_.Exception.Message
+        Write-Output $_.Exception
+        Write-Output $_.Exception.Message
     }
-
-    return $scripts
 }
 New-Alias "opc-getscriptversion" OpCon_GetScriptVersions
 
 # Gets the details of a specific script version
-function OpCon_GetScript($url,$token,$versionId)
+function OpCon_GetScript
 {
-    $hdr = @{"authorization" = $token}
-
-    $uriget = $url + "/api/scriptVersions/" + $versionId
+    Param(
+        [Parameter(Mandatory=$true)] [string]$url
+        ,[Parameter(Mandatory=$true)] [string]$token
+        ,[Parameter(Mandatory=$true)] [string]$versionId
+    )
 
     try
     {
-        $script = Invoke-RestMethod -Method GET -Uri $uriget -Headers $hdr -ContentType "application/json"
+        return Invoke-RestMethod -Method GET -Uri ($url + "/api/scriptVersions/" + $versionId) -Headers @{"authorization" = $token} -ContentType "application/json"
     }
     catch [Exception]
     {
-        Write-Host $_.Exception
-        Write-Host $_.Exception.Message
+        Write-Output $_.Exception
+        Write-Output $_.Exception.Message
     }
-
-    return $script
 }
 New-Alias "opc-getscript" OpCon_GetScript
 
-# For skipping self signed certificates in Powershell 7 (core)
-function OpCon_SkipCerts
-{
-    try
-    { $PSDefaultParameterValues.Add("Invoke-RestMethod:SkipCertificateCheck",$true) }
-    catch
-    { $null }
-}
-
-function OpCon_GetDailyJobFiltered($url,$token,$id,$filter)
+function OpCon_GetDailyJobFiltered
 {   
+    Param(
+        [Parameter(Mandatory=$true)] [string]$url
+        ,[Parameter(Mandatory=$true)] [string]$token
+        ,[string] $id
+        ,[string] $filter
+    )
+
     if($id)
     { $uriget = $url + "/api/dailyjobs/" + $id + $filter }
     elseif($filter)
@@ -3389,19 +3275,25 @@ function OpCon_GetDailyJobFiltered($url,$token,$id,$filter)
     { $uriget = $url + "/api/dailyjobs" }
 
     try
-    { $jobs = Invoke-RestMethod -Method GET -Uri $uriget -Headers @{"authorization" = $token} -ContentType "application/json" }
+    { return Invoke-RestMethod -Method GET -Uri $uriget -Headers @{"authorization" = $token} -ContentType "application/json" }
     catch [Exception]
     {
-        Write-Host $_.Exception
-        Write-Host $_.Exception.Message
+        Write-Output $_.Exception
+        Write-Output $_.Exception.Message
     }
-
-    return $jobs
 }
 New-Alias "opc-getdailyjobfiltered" OpCon_GetDailyJobFiltered
 
-function OpCon_UpdateBatchUser($url,$token,$id,$field,$value)
+function OpCon_UpdateBatchUser
 {  
+    Param(
+        [Parameter(Mandatory=$true)] [string]$url
+        ,[Parameter(Mandatory=$true)] [string]$token
+        ,[Parameter(Mandatory=$true)] [string]$field
+        ,[Parameter(Mandatory=$true)] [string]$value
+        ,[string] $id
+    )
+
     $user = OpCon_GetBatchUser -url $url -token $token -id $id
 
     if($field -eq "password")
@@ -3410,62 +3302,284 @@ function OpCon_UpdateBatchUser($url,$token,$id,$field,$value)
     { $user.$field = $value }
 
     #Update batch user
-    $uriput = $url + "/api/batchusers/" + $id
     try
     {
-        $update = Invoke-Restmethod -Method PUT -Uri $uriput -Headers @{"authorization" = $token} -Body ($user | ConvertTo-JSON -Depth 5) -ContentType "application/json"
+        return Invoke-Restmethod -Method PUT -Uri ($url + "/api/batchusers/" + $id) -Headers @{"authorization" = $token} -Body ($user | ConvertTo-JSON -Depth 5) -ContentType "application/json"
     }
     catch [Exception]
     {
-        write-host $_
-        write-host $_.Exception.Message
+        write-output $_
+        write-output $_.Exception.Message
     }
-
-    return $update
 }
 
 #Get a specific role
-function OpCon_GetRoles($url,$token)
+function OpCon_GetRoles
 {
-    $uriget = $url + "/api/roles?name="
+    Param(
+        [Parameter(Mandatory=$true)] [string]$url
+        ,[Parameter(Mandatory=$true)] [string]$token
+    )
 
     try
     {
-        $roles = Invoke-RestMethod -Method GET -Uri $uriget -Headers @{"authorization" = $token} -ContentType "application/json"
+        return Invoke-RestMethod -Method GET -Uri ($url + "/api/roles?name=") -Headers @{"authorization" = $token} -ContentType "application/json"
     }
     catch [Exception]
     {
-        Write-Host $_
-		Write-Host $_.Exception.Message
+        Write-Output $_
+		Write-Output $_.Exception.Message
     }
-
-    return $roles
 }
 
-function OpCon_PropertyExpression($url,$token,$expression)
+function OpCon_PropertyExpression
 {
+    Param(
+        [Parameter(Mandatory=$true)] [string]$url
+        ,[Parameter(Mandatory=$true)] [string]$token
+        ,[Parameter(Mandatory=$true)] [string]$expression
+    )
+
     try
-    { $result = Invoke-RestMethod -Method POST -Uri ($url + "/api/PropertyExpression") -Body (@{"Expression" = $expression} | ConvertTo-JSON) -Headers @{"authorization" = $token} -ContentType "application/json" }
+    { return Invoke-RestMethod -Method POST -Uri ($url + "/api/PropertyExpression") -Body (@{"Expression" = $expression} | ConvertTo-JSON) -Headers @{"authorization" = $token} -ContentType "application/json" }
     catch [Exception]
     {
-        Write-Host $_
-		Write-Host $_.Exception.Message
+        Write-Output $_
+		Write-Output $_.Exception.Message
     }
-
-    return $result
 }
 
-function OpCon_Reports($url,$token,$limit,$status)
+function OpCon_Reports
 {
-    $uriget = $url + "/api/dailyjobs?&status=$status&limit=$limit"
+    Param(
+        [Parameter(Mandatory=$true)] [string]$url
+        ,[Parameter(Mandatory=$true)] [string]$token
+        ,[Parameter(Mandatory=$true)] [string]$limit
+        ,[Parameter(Mandatory=$true)] [string]$status
+    )
 
     try
-    { $result = Invoke-RestMethod -Method GET -Uri $uriget -Headers @{"authorization" = $token} -ContentType "application/json" }
+    { return Invoke-RestMethod -Method GET -Uri ($url + "/api/dailyjobs?&status=$status&limit=$limit") -Headers @{"authorization" = $token} -ContentType "application/json" }
     catch [Exception]
     {
-        Write-Host $_
-		Write-Host $_.Exception.Message
+        Write-Output $_
+		Write-Output $_.Exception.Message
+    }
+}
+
+function OpCon_EventToAPI
+{
+    Param(
+        [Parameter(Mandatory=$true)] [string]$url
+        ,[Parameter(Mandatory=$true)] [string]$token
+        ,[Parameter(Mandatory=$true)] [string]$opconUser
+        ,[Parameter(Mandatory=$true)] [string]$opconEvent
+    )
+
+    try
+    { 
+        $body = @{
+            "loginName"=$opconUser;
+            "events"= @(
+                @{
+                    "id"=0;
+                    "eventString"=$opconEvent
+                }
+            )
+        }
+        invoke-restmethod -uri ($url + "/api/opconEventsCollection") -Body ($body | ConvertTo-Json -Depth 5) -Headers @{"Authorization"=$token} -ContentType "application/json" -Method POST
+    }
+    catch [Exception]
+    {
+        Write-Output $_
+        Write-Output $_.Exception.Message
+    }
+}
+
+function OpCon_RunScriptRepositoryScript
+{
+    Param(
+        [Parameter(Mandatory=$true)] [string]$url
+        ,[Parameter(Mandatory=$true)] [string]$token
+        ,[Parameter(Mandatory=$true)] [string]$script
+        ,[string]$version
+    )
+
+    try 
+    {
+        $versions = (Invoke-RestMethod -Method GET -Uri ($url + "/api/scripts?IncludeVersions=true&scriptname=" + $script) -Headers @{"authorization" = $token} -ContentType "application/json").versions
+        
+        if($versions)
+        {
+            # Set the "latest" to highest number of version
+            if($version -eq "latest"){ $versions = ((($versions).version | Measure-Object -Maximum).Maximum) }
+            
+            # Run the script
+            Invoke-Expression ((Invoke-RestMethod -uri ($url + "/api/scriptVersions/" + $versions.Where({ $_.version -eq $version }).id) -method GET -headers @{"authorization" = $token }).content)
+        }
+    }
+    catch [Exception]
+    {
+        Write-Output $_
+        Write-Output $_.Exception.Message   
+    }
+}
+
+
+function OpCon_GetIncidents
+{
+    Param(
+        [Parameter(Mandatory=$true)] [string]$url
+        ,[Parameter(Mandatory=$true)] [string]$token
+        ,[Parameter(Mandatory=$true)] [string]$job
+        ,[Parameter(Mandatory=$true)] [string]$schedule
+        ,[Parameter(Mandatory=$true)] [string]$date
+    )
+
+    try 
+    {
+        $jobID = (invoke-restmethod -Uri ($url + "/dailyjobs?JobName=" + $job + "&ScheduleName=" + $schedule + "&Dates=" + $date) -Headers @{"Authorization"=$token} -Method GET).uid
+
+        return Invoke-RestMethod -Uri ($url + "/dailyjobs/" + $jobID + "/incidentTickets") -Method GET -Headers @{"authorization"=$token}
+    }
+    catch [Exception]
+    {
+        Write-Output $_.Exception
+        Write-Output $_.Exception.Message
+    }
+}
+
+function OpCon_ManageIncident
+{
+    Param(
+        [Parameter(Mandatory=$true)] [string]$url
+        ,[Parameter(Mandatory=$true)] [string]$token
+        ,[Parameter(Mandatory=$true)] [string]$job
+        ,[Parameter(Mandatory=$true)] [string]$schedule
+        ,[Parameter(Mandatory=$true)] [string]$date
+        ,[Parameter(Mandatory=$true)] [string]$ticketId
+        ,[Parameter(Mandatory=$true)] [string]$ticketUrl
+        ,[Parameter(Mandatory=$true)] [string]$option
+        ,[string] $incidentId
+    )
+
+    try 
+    {
+        $jobID = (invoke-restmethod -Uri ($url + "/dailyjobs?JobName=" + $job + "&ScheduleName=" + $schedule + "&Dates=" + $date) -Headers @{"Authorization"=$token} -Method GET).uid
+
+        if($option -eq "add")
+        { 
+            $body = @{
+                "id"=0;
+                "ticketId"=$ticketId;
+                "ticketUrl"=$ticketUrl
+            }
+
+            return invoke-restmethod -Uri ($url + "/dailyjobs/" + $jobID + "/incidentTickets") -Body ($body | ConvertTo-Json) -Method POST -Headers @{"Authorization"=$token} -ContentType "application/json"
+        }
+        elseif($option -eq "update")
+        {
+            $body = @{
+                "id"=$id;
+                "ticketId"=$ticketId;
+                "ticketUrl"=$ticketUrl
+            }
+
+            return invoke-restmethod -Uri ($url + "/dailyjobs/" + $jobID + "/incidentTickets/" + $id) -Body ($body | ConvertTo-Json) -Method PUT -Headers @{"Authorization"=$token} -ContentType "application/json"
+        }
+        elseif($option -eq "delete")
+        {
+            return invoke-restmethod -Uri ($url + "/dailyjobs/" + $jobID + "/incidentTickets/" + $id) -Method Delete -Headers @{"Authorization"=$token} -ContentType "application/json"
+        }
+    }
+    catch [Exception]
+    {
+        Write-Output $_.Exception
+        Write-Output $_.Exception.Message
+    }
+}
+
+#Gets information about a Self Service button
+function OpCon_GetServiceRequest
+{
+    Param(
+        [Parameter(Mandatory=$true)] [string]$url
+        ,[Parameter(Mandatory=$true)] [string]$token
+        ,[string]$button
+        ,[int]$id
+    )
+
+    if($id -or $button)
+    {
+        if($id)
+        { $uriget = $url + "/api/selfServiceRequests/" + $id.ToString() }
+        elseif($button) 
+        { $uriget = $url + "/api/selfServiceRequests?name=" + $button }
+
+        try
+        {
+            return Invoke-RestMethod -Method GET -Uri $uriget -Headers @{"authorization" = $token} -ContentType "application/json"
+        }
+        catch [Exception]
+        {
+            Write-Host $_.Exception
+            Write-Host $_.Exception.Message
+        }
+    }
+    else
+    { 
+        Write-Host "No button name or id specified!" 
+        Exit 1
+    }
+}
+
+function OpCon_ManageServiceRequestChoice
+{
+    Param(
+        [Parameter(Mandatory=$true)] [string]$url
+        ,[Parameter(Mandatory=$true)] [string]$token
+        ,[Parameter(Mandatory=$true)] [string]$button
+        ,[Parameter(Mandatory=$true)] [string]$option
+        ,[Parameter(Mandatory=$true)] [string]$dropdown
+        ,[array] $items
+    )
+
+    $buttonDetails = OpCon_GetServiceRequest -url $url -token $token -button "$button"
+    $newItems = New-object -TypeName System.Collections.ArrayList
+
+    if($option -eq "add")
+    {
+        ($buttonDetails.request.variables.Where({ $_.type -eq "CHOICE" -and $_.name -eq "$dropdown" })).choice.items | ForEach-Object{ 
+            $newItems.Add([pscustomobject]@{ "caption"=$_.caption;"value"=$_.value } ) | Out-Null 
+        }
+        $items | ForEach-Object{ $newItems.Add([pscustomobject]@{"caption"=$_.caption;"value"=$_.value} ) | Out-Null }
+    }
+    elseif($option -eq "update")
+    {
+        $items | ForEach-Object{ $newItems.Add([pscustomobject]@{"caption"=$_.caption;"value"=$_.value} ) | Out-Null }
+    }
+    elseIf($option -eq "remove")
+    {
+        ($buttonDetails.request.variables.Where({ $_.type -eq "CHOICE" -and $_.name -eq "$dropdown" })).choice.items | ForEach-Object{ 
+            if($_.caption -notin $items.caption )
+            { $newItems.Add([pscustomobject]@{ "caption"=$_.caption;"value"=$_.value } ) | Out-Null }
+        }
+    }
+    else 
+    {
+        Write-Output "Invalid -option specified only add, remove, or update are valid"
+        Exit 1    
     }
 
-    return $result
+    ($buttonDetails.request.variables.Where({ $_.type -eq "CHOICE" -and $_.name -eq "$dropdown" })).choice.items = $newItems | Sort-Object -Property caption -Unique
+
+    try
+    {
+        Invoke-RestMethod -uri ($url + "/api/selfServiceRequests/" + $buttonDetails.id) -method PUT -body ($buttonDetails | ConvertTo-Json -Depth 7) -headers @{"Authorization"=$token} -ContentType "application/json" 
+    }
+    catch [Exception]
+    {
+        Write-Output $_.Exception
+        Write-Output $_.Exception.Message
+    }
 }
