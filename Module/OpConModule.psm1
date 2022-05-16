@@ -49,7 +49,7 @@ function OpCon_Login
     Param(
         [Parameter(Mandatory=$true)] [string]$url
         ,[Parameter(Mandatory=$true)] [string]$user
-        ,[Parameter(Mandatory=$true)] [string]$password
+        ,[string] $password
         ,[string] $appname
     )
 
@@ -64,6 +64,18 @@ function OpCon_Login
                     "id"=$appname;
                     "type"="Application"
             }
+        }
+    }
+    elseif($user -like "Win*Auth*")
+    { 
+        try
+        {
+            return Invoke-Restmethod -Method POST -Uri ($url + "/api/tokens") -ContentType "application/json" -UseDefaultCredentials
+        }
+        catch [Exception]
+        {
+            write-host $_
+            write-host $_.Exception.Message
         }
     }
     else 
@@ -89,6 +101,11 @@ function OpCon_Login
     }
 }
 New-Alias "opc-login" OpCon_GetLogin
+
+function OpCon_Errors($action)
+{
+    $ErrorActionPreference = $action
+}
 
 #Delete token from database
 function OpCon_DeleteAPIToken
@@ -168,7 +185,7 @@ function OpCon_CreateGlobalProperty
         ,[Parameter(Mandatory=$true)] [string]$token
         ,[Parameter(Mandatory=$true)] [string]$name
         ,[Parameter(Mandatory=$true)] [string]$value
-        ,[string] $encrypt
+        ,[string] $encrypt = $false
     )
 
     #Get property information
@@ -180,7 +197,7 @@ function OpCon_CreateGlobalProperty
 
     try
     { 
-        return nvoke-Restmethod -Method POST -Uri ($url + "/api/globalproperties") -Headers @{"authorization" = $token} -Body ($body | ConvertTo-Json) -ContentType "application/json" 
+        return Invoke-Restmethod -Method POST -Uri ($url + "/api/globalproperties") -Headers @{"authorization" = $token} -Body ($body | ConvertTo-Json) -ContentType "application/json"  
     }
     catch [Exception]
     {
@@ -990,7 +1007,7 @@ function OpCon_GetDailyJob($url,$token,$sname,$jname,$date,$id)
 New-Alias "opc-getdailyjob" OpCon_GetDailyJob
 
 #Sends a job action to a job
-function OpCon_JobAction($url,$token,$sname,$jname,$date,$action,$reason)
+function OpCon_JobAction($url,$token,$sname,$jname,$jobId,$date,$action,$reason)
 {
     if($action)
     {
@@ -1014,23 +1031,27 @@ function OpCon_JobAction($url,$token,$sname,$jname,$date,$action,$reason)
                 }
         }
 
-        if($jname -and $sname)
+        if($jname -and $sname -or $jobId)
         {
             if(!$date)
-            {
-                $date = Get-Date -Format "yyyy/MM/dd"
-            }
-            $job = OpCon_GetDailyJob -url $url -token $token -sname "$sname" -jname "$jname" -date $date
-    
-            $counter = 0    
-            $job | ForEach-Object{ $counter++ }
-            If($counter -ne 1)
-            {
-                Write-Host "Too many results for job!`r`n"
-            }
-    
+            { $date = Get-Date -Format "yyyy/MM/dd" }
+
             $jobsArray = @()
-            $jobsArray += @{ id=$job[0].id; }
+            if(!$jobId)
+            {
+                $job = OpCon_GetDailyJob -url $url -token $token -sname $sname -jname $jname -date $date
+    
+                $counter = 0
+                $job | ForEach-Object{ $counter++ }
+                If($counter -ne 1)
+                {
+                    Write-Host "Too many results for job!`r`n"
+                }
+                else
+                { $jobsArray += @{ id=$job[0].id; } }
+            }
+            else
+            { $jobsArray += @{ id=$jobId } }
     
             $body = @{
                 "action"=$action;
