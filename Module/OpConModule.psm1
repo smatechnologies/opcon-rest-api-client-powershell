@@ -1090,18 +1090,23 @@ function OpCon_JobAction($url,$token,$sname,$jname,$jobId,$date,$action,$reason)
                         for($x = 0;$x -lt 20;$x++)
                         {
                             $jobaction
-                            $result = OpCon_GetJobAction -url $url -token $token -id $jobaction.id
-                        
-                            if($result.result -eq "success")
-                            { $x = 20 }
-                            elseif($result.result -eq "error")
+                            if($jobaction.id)
                             {
-                                Write-Host "Job action attempt had an error"
-                                $result
+                                $result = OpCon_GetJobAction -url $url -token $token -id $jobaction.id
+                            
+                                if($result.result -eq "success")
+                                { $x = 20 }
+                                elseif($result.result -eq "error")
+                                {
+                                    Write-Host "Job action attempt had an error"
+                                    $result
+                                }
+                    
+                                if($x -ne 20)
+                                { Start-Sleep -s 3 }
                             }
-                
-                            if($x -ne 20)
-                            { Start-Sleep -s 3 }
+                            else 
+                            { Break }
                         }
                         return $result
                     }
