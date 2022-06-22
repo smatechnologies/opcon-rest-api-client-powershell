@@ -1,7 +1,7 @@
 ﻿param(
-    $opconmodule = "C:\Users\bjernell\OneDrive - SMA\Bruce\Github\OpCon_API\OpConModule.psm1",
-    $token = "Token 9656b4b3-34c1-4ef1-9a7e-ac0a1e3e109f", # API token (or you can use a temporary token)
-    $url = "https://3.14.98.182:9010"   # OpCon API Url ie: https://<opconserver>:9010
+    $opconmodule = "C:\OpConModule.psm1",
+    $token = "Token 12345-1234-1234-1234-12345", # API token (or you can use a temporary token)
+    $url = "https://<opcon server>"   # OpCon API Url ie: https://<opconserver>:9010
 )
 
 if(Test-Path $opconmodule)
@@ -22,9 +22,8 @@ else
 }
 
 
-##Needed when accessing a non-local OpCon API 
-OpCon_IgnoreSelfSignedCerts #(Powershell v3-5.1 only)
-#OpCon_SkipCerts
+## Skip self signed certs 
+OpCon_SkipCerts
 
 #API Version check, also verifies connectivity
 #OpCon_APIVersion -url $url
