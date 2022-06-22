@@ -985,24 +985,33 @@ function OpCon_GetDailyJob($url,$token,$sname,$jname,$date,$id)
     { $uriget = $url + "/api/dailyjobs/" + $id }
     else
     {
-        if($date)
-        { $uriget = $url + "/api/dailyjobs?scheduleName=" + $sname + "&dates=" + $date }
-        else
-        { $uriget = $url + "/api/dailyjobs?scheduleName=" + $sname }
+        if($sname -and $jname)
+        { $uriget = $url + "/api/dailyjobs?ScheduleName=" + $sname + "&JobName=" + $jname }
+        elseif($sname)
+        { $uriget = $url + "/api/dailyjobs?ScheduleName=" + $sname }
+        elseif($jname)
+        { $uriget = $url + "/api/dailyjobs?JobName=" + $jname }
+        
+        if($date -and ($jname -or $sname))
+        { $uriget = $uriget + "&dates=" + $date }
+        else 
+        { $uriget = $url + "/api/dailyjobs?ScheduleDates=" + $date }
     }
 
     try
-    { $jobs = Invoke-RestMethod -Method GET -Uri $uriget -Headers @{"authorization" = $token} -ContentType "application/json" }
+    { 
+        $jobs = Invoke-RestMethod -Method GET -Uri $uriget -Headers @{"authorization" = $token} -ContentType "application/json" 
+
+        if($jname)
+        { $jobs = $jobs.Where({ $_.name -like "*$jname*" }) }
+    
+        return $jobs
+    }
     catch [Exception]
     {
         Write-Host $_.Exception
         Write-Host $_.Exception.Message
     }
-
-    if($jname)
-    { $jobs = $jobs.Where({ $_.name -like "*$jname*" }) }
-
-    return $jobs
 }
 New-Alias "opc-getdailyjob" OpCon_GetDailyJob
 
@@ -1031,7 +1040,7 @@ function OpCon_JobAction($url,$token,$sname,$jname,$jobId,$date,$action,$reason)
                 }
         }
 
-        if($jname -and $sname -or $jobId)
+        if(($jname -and $sname) -or $jobId)
         {
             if(!$date)
             { $date = Get-Date -Format "yyyy/MM/dd" }
@@ -1040,63 +1049,65 @@ function OpCon_JobAction($url,$token,$sname,$jname,$jobId,$date,$action,$reason)
             if(!$jobId)
             {
                 $job = OpCon_GetDailyJob -url $url -token $token -sname $sname -jname $jname -date $date
-    
+
                 $counter = 0
                 $job | ForEach-Object{ $counter++ }
                 If($counter -ne 1)
                 {
-                    Write-Host "Too many results for job!`r`n"
+                    Write-Host "Too many results or no jobs found for job $jname in schedule $sname on $date!`r`n"
                 }
                 else
-                { $jobsArray += @{ id=$job[0].id; } }
+                { 
+                    $jobsArray += @{ id=$job[0].id; } 
+                
+                    $body = @{
+                        "action"=$action;
+                        "jobs"=$jobsArray;
+                        "reason"=$reason
+                    }
+                
+                    try
+                    {
+                        $jobaction = Invoke-RestMethod -Method POST -Uri ($url + "/api/jobactions") -Body ($body | ConvertTo-JSON) -Headers @{"authorization" = $token} -ContentType "application/json"
+                    }
+                    catch [Exception]
+                    {
+                        Write-Host $_
+                        Write-Host $_.Exception.Message
+                    }
+                
+                    if($jobaction.result -eq "success")
+                    {
+                        return $jobaction
+                    }
+                    elseif($jobaction.result -eq "error")
+                    {
+                        Write-Host "Job action attempt had an error"
+                    }
+                    else
+                    {
+                        for($x = 0;$x -lt 20;$x++)
+                        {
+                            $jobaction
+                            $result = OpCon_GetJobAction -url $url -token $token -id $jobaction.id
+                        
+                            if($result.result -eq "success")
+                            { $x = 20 }
+                            elseif($result.result -eq "error")
+                            {
+                                Write-Host "Job action attempt had an error"
+                                $result
+                            }
+                
+                            if($x -ne 20)
+                            { Start-Sleep -s 3 }
+                        }
+                        return $result
+                    }
+                }
             }
             else
             { $jobsArray += @{ id=$jobId } }
-    
-            $body = @{
-                "action"=$action;
-                "jobs"=$jobsArray;
-                "reason"=$reason
-            }
-        
-            try
-            {
-                $jobaction = (Invoke-RestMethod -Method POST -Uri ($url + "/api/jobactions") -Body ($body | ConvertTo-JSON) -Headers @{"authorization" = $token} -ContentType "application/json")
-            }
-            catch [Exception]
-            {
-                Write-Host $_
-                Write-Host $_.Exception.Message
-            }
-        
-            if($jobaction.result -eq "success")
-            {
-                return $jobaction
-            }
-            elseif($jobaction.result -eq "error")
-            {
-                Write-Host "Job action attempt had an error"
-            }
-            else
-            {
-                for($x = 0;$x -lt 20;$x++)
-                {
-                    $jobaction
-                    $result = OpCon_GetJobAction -url $url -token $token -id $jobaction.id
-                
-                    if($result.result -eq "success")
-                    { $x = 20 }
-                    elseif($result.result -eq "error")
-                    {
-                        Write-Host "Job action attempt had an error"
-                        $result
-                    }
-        
-                    if($x -ne 20)
-                    { Start-Sleep -s 3 }
-                }
-                return $result
-            }
         }
         Else
         { Write-Host "Missing schedule or job name!" }
