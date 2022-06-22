@@ -994,12 +994,13 @@ function OpCon_GetDailyJob($url,$token,$sname,$jname,$date,$id)
         
         if($date -and ($jname -or $sname))
         { $uriget = $uriget + "&dates=" + $date }
-        else 
-        { $uriget = $url + "/api/dailyjobs?ScheduleDates=" + $date }
+        elseif($date) 
+        { $uriget = $url + "/api/dailyjobs?dates=" + $date }
     }
 
     try
     { 
+ 
         $jobs = Invoke-RestMethod -Method GET -Uri $uriget -Headers @{"authorization" = $token} -ContentType "application/json" 
 
         if($jname)
